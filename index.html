@@ -751,10 +751,21 @@ function SanshinApp() {
 
   const handleSaveDiaryEdit = () => {
     if (!editingDiary) return;
-    const next = diary.map(d => d.date === editingDiary.date ? editingDiary : d);
+    const originalDate = diary.find(d => d.songs === editingDiary.songs)?.date || editingDiary.date;
+    const next = diary
+      .filter(d => d !== diary.find(d2 => JSON.stringify(d2.songs) === JSON.stringify(editingDiary.songs) || d2.date === editingDiary._originalDate))
+      .concat([{date: editingDiary.date, songs: editingDiary.songs}])
+      .sort((a,b) => b.date.localeCompare(a.date));
     setDiary(next);
     setEditingDiary(null);
-    gasUpdateSession(editingDiary).catch(e => console.error("GAS更新エラー:", e));
+    // 元の日付で削除→新しい日付で追記
+    if (editingDiary._originalDate && editingDiary._originalDate !== editingDiary.date) {
+      gasDeleteSession(editingDiary._originalDate)
+        .then(() => gasAppendSessions([{date: editingDiary.date, songs: editingDiary.songs}]))
+        .catch(e => console.error("GAS更新エラー:", e));
+    } else {
+      gasUpdateSession(editingDiary).catch(e => console.error("GAS更新エラー:", e));
+    }
   };
 
   const handleEditSongChange = (idx, field, value) => {
@@ -1022,7 +1033,7 @@ function SanshinApp() {
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={S.historySongCount}>{entry.songs?.length}曲</span>
                       <button style={{fontSize:11,padding:"2px 8px",borderRadius:6,border:`1px solid ${C.teal}`,background:"transparent",color:C.teal,cursor:"pointer"}}
-                        onClick={e=>{e.stopPropagation();setEditingDiary(JSON.parse(JSON.stringify(entry)))}}>✏️</button>
+                        onClick={e=>{e.stopPropagation();const copy=JSON.parse(JSON.stringify(entry));copy._originalDate=entry.date;setEditingDiary(copy)}}>✏️</button>
                       <button style={{fontSize:11,padding:"2px 8px",borderRadius:6,border:`1px solid ${C.accent}`,background:"transparent",color:C.accent,cursor:"pointer"}}
                         onClick={e=>{e.stopPropagation();setConfirmDeleteDate(entry.date)}}>🗑️</button>
                     </div>
@@ -1387,7 +1398,10 @@ function SanshinApp() {
       {editingDiary && (
         <div style={S.modalOverlay} onClick={()=>setEditingDiary(null)}>
           <div style={{...S.modalBox,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={S.modalTitle}>✏️ {editingDiary.date} を編集</div>
+            <div style={S.modalTitle}>✏️ お稽古日誌を編集</div>
+            <input type="date" style={S.dateInput}
+              value={editingDiary.date}
+              onChange={e=>setEditingDiary({...editingDiary, date:e.target.value})}/>
             {["着物組","ひよこ組"].map(grp=>(
               <div key={grp} style={{marginTop:12}}>
                 <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
