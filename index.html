@@ -317,6 +317,35 @@ async function gasSaveSong(number, title) {
   fetch(`${GAS_URL}?${params}`).catch(e => console.error("曲追加エラー:", e));
 }
 
+// セッション追記
+async function gasAppendSessions(sessions) {
+  if (!IS_PRODUCTION) return;
+  for (const session of sessions) {
+    const params = new URLSearchParams({
+      action: "appendSession",
+      date: session.date,
+      songs: encodeURIComponent(JSON.stringify(session.songs)),
+    });
+    const res = await fetch(`${GAS_URL}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  }
+}
+
+// セッション削除
+async function gasDeleteSession(date) {
+  if (!IS_PRODUCTION) return;
+  const params = new URLSearchParams({ action: "deleteSession", date });
+  const res = await fetch(`${GAS_URL}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// セッション更新（削除→追記）
+async function gasUpdateSession(session) {
+  if (!IS_PRODUCTION) return;
+  await gasDeleteSession(session.date);
+  await gasAppendSessions([session]);
+}
+
 async function gasPost(action, data) {
   // Artifact環境では保存しない
   if (!IS_PRODUCTION) return { success: true, skipped: true };
@@ -324,26 +353,6 @@ async function gasPost(action, data) {
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
   if (!key) throw new Error("unknown action");
-
-  // 日誌データは行単位でGETパラメータ送信（URL長制限を回避）
-  if (key === "diary" && Array.isArray(data)) {
-    // まずクリア
-    const clearParams = new URLSearchParams({ action:"clearDiary" });
-    await fetch(`${GAS_URL}?${clearParams}`);
-    // セッションごとに送信
-    for (const session of data) {
-      const params = new URLSearchParams({
-        action: "appendSession",
-        date: session.date,
-        songs: encodeURIComponent(JSON.stringify(session.songs)),
-      });
-      const res = await fetch(`${GAS_URL}?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    }
-    return { success: true };
-  }
-
-  // その他は従来通り
   const params = new URLSearchParams({
     action: "saveAll",
     [key]: encodeURIComponent(JSON.stringify(data)),
@@ -494,7 +503,8 @@ function SanshinApp() {
     next = next.sort((a,b) => b.date.localeCompare(a.date));
     setDiary(next);
     setParseResults([]); setLineText(""); setTab("history");
-    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+    // 新規セッションのみ追記
+    gasAppendSessions(parseResults).catch(e => console.error("GAS追記エラー:", e));
   };
 
   // ── 履歴編集・削除 ────────────────────────────────────
@@ -502,7 +512,7 @@ function SanshinApp() {
     const next = diary.filter(d => d.date !== date);
     setDiary(next);
     setSelectedEntry(null); setConfirmDeleteDate(null);
-    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+    gasDeleteSession(date).catch(e => console.error("GAS削除エラー:", e));
   };
 
   const handleSaveDiaryEdit = () => {
@@ -510,7 +520,7 @@ function SanshinApp() {
     const next = diary.map(d => d.date === editingDiary.date ? editingDiary : d);
     setDiary(next);
     setEditingDiary(null);
-    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+    gasUpdateSession(editingDiary).catch(e => console.error("GAS更新エラー:", e));
   };
 
   const handleEditSongChange = (idx, field, value) => {
