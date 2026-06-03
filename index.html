@@ -500,6 +500,28 @@ function SanshinApp() {
     }));
   };
 
+  // ── イベント追加・削除 ───────────────────────────────
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [newEvent, setNewEvent] = useState({ title:"", date:"", time:"", place:"", confirmed:false });
+
+  const handleAddEvent = () => {
+    if (!newEvent.title || !newEvent.date) return;
+    const id = Math.max(0, ...events.map(e => e.id)) + 1;
+    const next = [...events, { ...newEvent, id }].sort((a,b) => a.date.localeCompare(b.date));
+    setEvents(next);
+    setNewEvent({ title:"", date:"", time:"", place:"", confirmed:false });
+    setShowAddEvent(false);
+    gasPost("saveEvents", next).catch(e => console.error("GAS保存エラー:", e));
+  };
+
+  const handleDeleteEvent = (id) => {
+    const next = events.filter(e => e.id !== id);
+    setEvents(next);
+    gasPost("saveEvents", next).catch(e => console.error("GAS保存エラー:", e));
+  };
+
+  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState(null);
+
   // ── エクスポート ──────────────────────────────────────
   const handleExport = () => {
     const stats = {};
@@ -709,7 +731,13 @@ function SanshinApp() {
         {/* ── イベント ── */}
         {tab==="events" && (
           <div style={S.section}>
-            <h2 style={S.sectionTitle}>年間イベント</h2>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
+              <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>年間イベント</h2>
+              <button style={{...S.btn,background:C.teal,color:"#fff",fontSize:12,padding:"6px 14px"}}
+                onClick={()=>setShowAddEvent(true)}>
+                ＋ 追加
+              </button>
+            </div>
             {events.map(ev=>{
               const past = ev.date < today;
               return (
@@ -762,7 +790,11 @@ function SanshinApp() {
                             </div>
                           )}
                         </div>
-                        <button style={{...S.taruBtn,marginLeft:"auto",flexShrink:0}} onClick={()=>setEditingEvent({...ev})}>✏️ 編集</button>
+                        <div style={{display:"flex",gap:6,marginLeft:"auto",flexShrink:0}}>
+                          <button style={{...S.taruBtn}} onClick={()=>setEditingEvent({...ev})}>✏️ 編集</button>
+                          <button style={{...S.taruBtn,border:`1px solid ${C.accent}`,color:C.accent}}
+                            onClick={()=>setConfirmDeleteEventId(ev.id)}>🗑️</button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1043,6 +1075,56 @@ function SanshinApp() {
             <div style={{display:"flex",gap:8,marginTop:16}}>
               <button style={{...S.btn,...S.btnSuccess,flex:1}} onClick={handleSaveDiaryEdit}>✅ 保存</button>
               <button style={{...S.btn,...S.btnGhost}} onClick={()=>setEditingDiary(null)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── イベント追加モーダル ── */}
+      {showAddEvent && (
+        <div style={S.modalOverlay} onClick={()=>setShowAddEvent(false)}>
+          <div style={S.modalBox} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>＋ イベントを追加</div>
+            <input type="text" style={S.dateInput} placeholder="イベント名（必須）"
+              value={newEvent.title} onChange={e=>setNewEvent({...newEvent,title:e.target.value})}/>
+            <input type="date" style={S.dateInput}
+              value={newEvent.date} onChange={e=>setNewEvent({...newEvent,date:e.target.value})}/>
+            <input type="text" style={S.dateInput} placeholder="時間（例: 14:00〜16:00）"
+              value={newEvent.time} onChange={e=>setNewEvent({...newEvent,time:e.target.value})}/>
+            <input type="text" style={S.dateInput} placeholder="場所"
+              value={newEvent.place} onChange={e=>setNewEvent({...newEvent,place:e.target.value})}/>
+            <div style={{display:"flex",gap:8}}>
+              <button style={{...S.btn,flex:1,background:newEvent.confirmed?C.teal:C.border,color:newEvent.confirmed?"#fff":C.text}}
+                onClick={()=>setNewEvent({...newEvent,confirmed:true})}>✅ 確定</button>
+              <button style={{...S.btn,flex:1,background:!newEvent.confirmed?"#f39c12":C.border,color:!newEvent.confirmed?"#fff":C.text}}
+                onClick={()=>setNewEvent({...newEvent,confirmed:false})}>🔸 仮</button>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button style={{...S.btn,...S.btnSuccess,flex:1}}
+                onClick={handleAddEvent}
+                disabled={!newEvent.title||!newEvent.date}>
+                ✅ 追加する
+              </button>
+              <button style={{...S.btn,...S.btnGhost}} onClick={()=>setShowAddEvent(false)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── イベント削除確認モーダル ── */}
+      {confirmDeleteEventId && (
+        <div style={S.modalOverlay} onClick={()=>setConfirmDeleteEventId(null)}>
+          <div style={S.modalBox} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>🗑️ 削除の確認</div>
+            <p style={{fontSize:14,color:C.text,margin:0}}>
+              <strong>{events.find(e=>e.id===confirmDeleteEventId)?.title}</strong> を削除しますか？
+            </p>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button style={{...S.btn,background:C.accent,color:"#fff",flex:1}}
+                onClick={()=>{handleDeleteEvent(confirmDeleteEventId);setConfirmDeleteEventId(null);}}>
+                🗑️ 削除する
+              </button>
+              <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>setConfirmDeleteEventId(null)}>キャンセル</button>
             </div>
           </div>
         </div>
