@@ -575,20 +575,34 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
+async function _gasPost(key, jsonStr) {
+  const CHUNK = 1500;
+  if (jsonStr.length <= CHUNK) {
+    const params = new URLSearchParams({ action:"saveAll", [key]: encodeURIComponent(jsonStr) });
+    const res = await fetch(`${GAS_URL}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+  // チャンク分割送信
+  const chunks = [];
+  for (let i = 0; i < jsonStr.length; i += CHUNK) chunks.push(jsonStr.slice(i, i+CHUNK));
+  for (let i = 0; i < chunks.length; i++) {
+    const params = new URLSearchParams({ action:"saveChunk", key, chunk:encodeURIComponent(chunks[i]), index:i, total:chunks.length });
+    const res = await fetch(`${GAS_URL}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} (chunk ${i})`);
+  }
+  const res = await fetch(`${GAS_URL}?${new URLSearchParams({ action:"commitChunk", key })}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} (commit)`);
+  return res.json();
+}
+
 async function gasPost(action, data) {
-  // Artifact環境では保存しない
   if (!IS_PRODUCTION) return { success: true, skipped: true };
   const key = action === "saveDiary" ? "diary"
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
   if (!key) throw new Error("unknown action");
-  const params = new URLSearchParams({
-    action: "saveAll",
-    [key]: encodeURIComponent(JSON.stringify(data)),
-  });
-  const res = await fetch(`${GAS_URL}?${params}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return _gasPost(key, JSON.stringify(data));
 }
 
 // ── カラーパレット ─────────────────────────────────────
