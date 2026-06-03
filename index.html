@@ -575,7 +575,7 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
-async function _gasPost(key, jsonStr) {
+async function gasSend(key, jsonStr) {
   const CHUNK = 1500;
   if (jsonStr.length <= CHUNK) {
     const params = new URLSearchParams({ action:"saveAll", [key]: encodeURIComponent(jsonStr) });
@@ -602,7 +602,17 @@ async function gasPost(action, data) {
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
   if (!key) throw new Error("unknown action");
-  return _gasPost(key, JSON.stringify(data));
+  // saveImportはチャンク不要（小さいデータ）→ saveAllで直接送信
+  if (key === "importResult") {
+    const params = new URLSearchParams({
+      action: "saveAll",
+      importResult: encodeURIComponent(JSON.stringify(data)),
+    });
+    const res = await fetch(`${GAS_URL}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+  return gasSend(key, JSON.stringify(data));
 }
 
 // ── カラーパレット ─────────────────────────────────────
