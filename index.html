@@ -22,7 +22,7 @@
 
 // ── ユーティリティ ─────────────────────────────────────
 function taruGoogleUrl(title) {
-  return `https://www.google.com/search?q=site:taru.ti-da.net+${encodeURIComponent(title)}`;
+  return `https://www.google.com/search?q=${encodeURIComponent(title)}+%E5%94%84+%E5%88%86%E6%9E%90`;
 }
 
 function getMastery(count) {
@@ -947,7 +947,7 @@ function SanshinApp() {
                           <span style={S.songNum}>{num}</span>
                           <span style={S.songTitle}>{info.title}</span>
                           <span style={S.statCount}>{info.count}回</span>
-                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>たるー</button>
+                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
                           <div style={S.barWrap}><div style={{...S.bar,width:`${Math.min(100,info.count*10)}%`}}/></div>
@@ -1193,7 +1193,7 @@ function SanshinApp() {
         <div style={S.modalOverlay} onClick={()=>setTaruModal(null)}>
           <div style={S.modalBox} onClick={e=>e.stopPropagation()}>
             <div style={S.modalTitle}>🎵 {taruModal.title}</div>
-            <p style={{fontSize:12,color:C.sub,margin:"0 0 12px"}}>「たるーの島唄まじめな研究」で解説を検索します。</p>
+            <p style={{fontSize:12,color:C.sub,margin:"0 0 12px"}}>Googleで曲の解説を検索します。</p>
             <a href={taruGoogleUrl(taruModal.title)} target="_blank" rel="noreferrer"
               style={{...S.btn,...S.btnPrimary,textDecoration:"none",textAlign:"center",display:"block"}}>
               🔍 Google で検索する
