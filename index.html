@@ -719,12 +719,26 @@ function SanshinApp() {
                     })}
                   </div>
                 ))}
-                <div style={{display:"flex",gap:8}}>
-                  <button style={{...S.btn,...S.btnSuccess}} onClick={handleSaveDiary}>
-                    ✅ {parseResults.length>1?`${parseResults.length}回分まとめて保存`:"保存する"}
-                  </button>
-                  <button style={{...S.btn,...S.btnGhost}} onClick={()=>setParseResults([])}>やり直す</button>
-                </div>
+                {(() => {
+                  const unknownSongs = parseResults.flatMap(r =>
+                    r.songs.filter(s => !SONG_DB[s.number])
+                  );
+                  return (
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {unknownSongs.length > 0 && (
+                        <div style={{background:"#fff3e0",border:"1px solid #e67e22",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#c0392b"}}>
+                          ⚠️ 未確認の曲番号が{unknownSongs.length}件あります（{unknownSongs.map(s=>s.number).join("・")}）。このまま登録してもいいですか？
+                        </div>
+                      )}
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={{...S.btn,...S.btnSuccess,flex:1}} onClick={handleSaveDiary}>
+                          ✅ {parseResults.length>1?`${parseResults.length}回分まとめて保存`:"保存する"}
+                        </button>
+                        <button style={{...S.btn,...S.btnGhost}} onClick={()=>setParseResults([])}>やり直す</button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
