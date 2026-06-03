@@ -930,6 +930,7 @@ function SanshinApp() {
     songStats[s.number].count++;
   }));
 
+  const maxSongCount = Object.values(songStats).reduce((m, s) => Math.max(m, s.count), 1);
   const latestSession = diary[0];
   const recKimono = latestSession ? latestSession.songs.filter(s => s.group==="着物組") : [];
   const recHiyoko = latestSession ? latestSession.songs.filter(s => s.group==="ひよこ組") : [];
@@ -1255,7 +1256,7 @@ function SanshinApp() {
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
-                          <div style={S.barWrap}><div style={{...S.bar,width:`${Math.min(100,info.count*10)}%`}}/></div>
+                          <div style={S.barWrap}><div style={{...S.bar,width:`${Math.round(info.count / maxSongCount * 100)}%`}}/></div>
                           <span style={{fontSize:11,fontWeight:"bold",padding:"2px 8px",borderRadius:10,color:m.color,background:m.bg,whiteSpace:"nowrap"}}>{m.stage}</span>
                         </div>
                       </div>
