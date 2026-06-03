@@ -830,19 +830,39 @@ function SanshinApp() {
       if (!stats[s.number]) stats[s.number] = {title:s.title, count:0, group:s.group};
       stats[s.number].count++;
     }));
+    // 年ごとに集計
+    const statsByYear = {};
+    diary.forEach(d => {
+      const y = d.date.slice(0,4);
+      if (!statsByYear[y]) statsByYear[y] = {};
+      d.songs?.forEach(s => {
+        if (!statsByYear[y][s.number]) statsByYear[y][s.number] = {title:s.title, count:0, group:s.group};
+        statsByYear[y][s.number].count++;
+      });
+    });
+    const years = Object.keys(statsByYear).sort();
+
     const lines = [
       "以下は結の会スージー三線教室のお稽古記録です。",
-      "①着物組・ひよこ組それぞれについて、同じ分量で練習アドバイスをしてください。",
-      "②着物組・ひよこ組それぞれの最近の練習傾向を分析してください。",
+      "①総括として着物組・ひよこ組それぞれの全体的な傾向を2〜3文で簡潔にまとめてください。",
+      "②年ごとに着物組・ひよこ組それぞれの練習アドバイスと傾向分析をしてください。",
       "③イベントに向けて優先すべき曲をアドバイスしてください。",
-      "結果のJSONはadvice・analysisを着物組・ひよこ組のキーで分けてください。",
+      "結果のJSONはsummary（総括・文字列）、advice・analysisを年→着物組・ひよこ組のキーで分けてください。",
+      "例: {"summary":"...","advice":{"2025":{"着物組":"...","ひよこ組":"..."},"2026":{...}},"analysis":{"2025":{...},...}}",
       "",
-      `【記録回数】${diary.length}回`,
+      `【総記録回数】${diary.length}回`,
       "",
-      "【曲別練習回数】",
-      ...Object.entries(stats).sort((a,b)=>b[1].count-a[1].count)
-        .map(([num,info]) => `  ${num} ${info.title}（${info.group}）: ${info.count}回`),
-      "",
+      ...years.flatMap(y => {
+        const ys = statsByYear[y];
+        const yDiary = diary.filter(d => d.date.startsWith(y));
+        return [
+          `【${y}年 記録回数】${yDiary.length}回`,
+          `【${y}年 曲別練習回数】`,
+          ...Object.entries(ys).sort((a,b)=>b[1].count-a[1].count)
+            .map(([num,info]) => `  ${num} ${info.title}（${info.group}）: ${info.count}回`),
+          "",
+        ];
+      }),
       "【直近4回のお稽古】",
       ...diary.slice(0,4).flatMap(d => [
         `  ${d.date}`,
@@ -1254,6 +1274,14 @@ function SanshinApp() {
           <div style={S.section}>
             <h2 style={S.sectionTitle}>🤖 AI分析</h2>
 
+            {/* 総括 */}
+            {importResult?.summary && (
+              <div style={S.adviceCard}>
+                <div style={S.adviceHeader}>📋 総括</div>
+                <div style={S.importText}>{importResult.summary}</div>
+              </div>
+            )}
+
             {/* アドバイス */}
             <div style={S.adviceCard}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -1269,22 +1297,23 @@ function SanshinApp() {
                 })()}
               </div>
               {importResult?.advice
-                ? typeof importResult.advice === "object"
-                  ? <>
-                      {importResult.advice["着物組"] && (
-                        <div style={{marginBottom:8}}>
-                          <div style={S.groupLabel}>🪸 着物組</div>
-                          <div style={{...S.importText,marginTop:6}}>{importResult.advice["着物組"]}</div>
+                ? (() => {
+                    const adv = importResult.advice;
+                    // 年別形式かどうか判定
+                    const isYearly = Object.keys(adv).some(k => /^\d{4}$/.test(k));
+                    if (isYearly) {
+                      return Object.keys(adv).sort().map(yr => (
+                        <div key={yr} style={{marginBottom:12}}>
+                          <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
+                          {adv[yr]["着物組"] && <div style={{marginBottom:6}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:4}}>{adv[yr]["着物組"]}</div></div>}
+                          {adv[yr]["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:4}}>{adv[yr]["ひよこ組"]}</div></div>}
                         </div>
-                      )}
-                      {importResult.advice["ひよこ組"] && (
-                        <div>
-                          <div style={S.groupLabel}>🐣 ひよこ組</div>
-                          <div style={{...S.importText,marginTop:6}}>{importResult.advice["ひよこ組"]}</div>
-                        </div>
-                      )}
-                    </>
-                  : <div style={S.importText}>{importResult.advice}</div>
+                      ));
+                    }
+                    return typeof adv === "object"
+                      ? <>{adv["着物組"] && <div style={{marginBottom:8}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:6}}>{adv["着物組"]}</div></div>}{adv["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:6}}>{adv["ひよこ組"]}</div></div>}</>
+                      : <div style={S.importText}>{adv}</div>;
+                  })()
                 : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
               }
             </div>
@@ -1304,22 +1333,22 @@ function SanshinApp() {
                 })()}
               </div>
               {importResult?.analysis
-                ? typeof importResult.analysis === "object"
-                  ? <>
-                      {importResult.analysis["着物組"] && (
-                        <div style={{marginBottom:8}}>
-                          <div style={S.groupLabel}>🪸 着物組</div>
-                          <div style={{...S.importText,marginTop:6}}>{importResult.analysis["着物組"]}</div>
+                ? (() => {
+                    const ana = importResult.analysis;
+                    const isYearly = Object.keys(ana).some(k => /^\d{4}$/.test(k));
+                    if (isYearly) {
+                      return Object.keys(ana).sort().map(yr => (
+                        <div key={yr} style={{marginBottom:12}}>
+                          <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
+                          {ana[yr]["着物組"] && <div style={{marginBottom:6}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:4}}>{ana[yr]["着物組"]}</div></div>}
+                          {ana[yr]["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:4}}>{ana[yr]["ひよこ組"]}</div></div>}
                         </div>
-                      )}
-                      {importResult.analysis["ひよこ組"] && (
-                        <div>
-                          <div style={S.groupLabel}>🐣 ひよこ組</div>
-                          <div style={{...S.importText,marginTop:6}}>{importResult.analysis["ひよこ組"]}</div>
-                        </div>
-                      )}
-                    </>
-                  : <div style={S.importText}>{importResult.analysis}</div>
+                      ));
+                    }
+                    return typeof ana === "object"
+                      ? <>{ana["着物組"] && <div style={{marginBottom:8}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:6}}>{ana["着物組"]}</div></div>}{ana["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:6}}>{ana["ひよこ組"]}</div></div>}</>
+                      : <div style={S.importText}>{ana}</div>;
+                  })()
                 : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
               }
             </div>
