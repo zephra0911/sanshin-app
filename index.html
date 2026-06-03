@@ -575,45 +575,38 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
-async function gasSend(key, jsonStr) {
-  const CHUNK = 1500;
-  if (jsonStr.length <= CHUNK) {
-    const params = new URLSearchParams({ action:"saveAll", [key]: encodeURIComponent(jsonStr) });
-    const res = await fetch(`${GAS_URL}?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-  // チャンク分割送信
-  const chunks = [];
-  for (let i = 0; i < jsonStr.length; i += CHUNK) chunks.push(jsonStr.slice(i, i+CHUNK));
-  for (let i = 0; i < chunks.length; i++) {
-    const params = new URLSearchParams({ action:"saveChunk", key, chunk:encodeURIComponent(chunks[i]), index:i, total:chunks.length });
-    const res = await fetch(`${GAS_URL}?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status} (chunk ${i})`);
-  }
-  const res = await fetch(`${GAS_URL}?${new URLSearchParams({ action:"commitChunk", key })}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status} (commit)`);
-  return res.json();
-}
-
-async function gasPost(action, data) {
-  if (!IS_PRODUCTION) return { success: true, skipped: true };
-  const key = action === "saveDiary" ? "diary"
+function gasPostSync(action, data) {
+  if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
+  var key = action === "saveDiary" ? "diary"
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
-  if (!key) throw new Error("unknown action");
-  // saveImportはチャンク不要（小さいデータ）→ saveAllで直接送信
-  if (key === "importResult") {
-    const params = new URLSearchParams({
-      action: "saveAll",
-      importResult: encodeURIComponent(JSON.stringify(data)),
-    });
-    const res = await fetch(`${GAS_URL}?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+  if (!key) return Promise.reject(new Error("unknown action"));
+  var jsonStr = JSON.stringify(data);
+  var CHUNK = 1500;
+  if (jsonStr.length <= CHUNK) {
+    var p = new URLSearchParams({ action:"saveAll" });
+    p.set(key, jsonStr);
+    return fetch(GAS_URL + "?" + p.toString()).then(function(r){ return r.json(); });
   }
-  return gasSend(key, JSON.stringify(data));
+  // チャンク分割
+  var chunks = [];
+  for (var i = 0; i < jsonStr.length; i += CHUNK) chunks.push(jsonStr.slice(i, i+CHUNK));
+  var promise = Promise.resolve();
+  chunks.forEach(function(chunk, idx) {
+    promise = promise.then(function() {
+      var p2 = new URLSearchParams({ action:"saveChunk", index:idx, total:chunks.length });
+      p2.set("key", key);
+      p2.set("chunk", chunk);
+      return fetch(GAS_URL + "?" + p2.toString()).then(function(r){ return r.json(); });
+    });
+  });
+  return promise.then(function() {
+    var p3 = new URLSearchParams({ action:"commitChunk" });
+    p3.set("key", key);
+    return fetch(GAS_URL + "?" + p3.toString()).then(function(r){ return r.json(); });
+  });
 }
+var gasPost = gasPostSync;
 
 // ── カラーパレット ─────────────────────────────────────
 const C = {
