@@ -325,40 +325,32 @@ async function gasPost(action, data) {
     : action === "saveImport" ? "importResult" : null;
   if (!key) throw new Error("unknown action");
 
-  // データが大きい場合はJSON文字列を分割して送信
-  const jsonStr = JSON.stringify(data);
-  const CHUNK_SIZE = 1500;
-
-  if (jsonStr.length <= CHUNK_SIZE) {
-    // 小さいデータはそのまま送信
-    const params = new URLSearchParams({ action:"saveAll", [key]: encodeURIComponent(jsonStr) });
-    const res = await fetch(`${GAS_URL}?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  } else {
-    // 大きいデータはチャンク分割して送信
-    const chunks = [];
-    for (let i = 0; i < jsonStr.length; i += CHUNK_SIZE) {
-      chunks.push(jsonStr.slice(i, i + CHUNK_SIZE));
-    }
-    const total = chunks.length;
-    for (let i = 0; i < total; i++) {
+  // 日誌データは行単位でGETパラメータ送信（URL長制限を回避）
+  if (key === "diary" && Array.isArray(data)) {
+    // まずクリア
+    const clearParams = new URLSearchParams({ action:"clearDiary" });
+    await fetch(`${GAS_URL}?${clearParams}`);
+    // セッションごとに送信
+    for (const session of data) {
       const params = new URLSearchParams({
-        action: "saveChunk",
-        key,
-        chunk: encodeURIComponent(chunks[i]),
-        index: i,
-        total,
+        action: "appendSession",
+        date: session.date,
+        songs: encodeURIComponent(JSON.stringify(session.songs)),
       });
       const res = await fetch(`${GAS_URL}?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status} (chunk ${i})`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     }
-    // 全チャンク送信後にコミット
-    const commitParams = new URLSearchParams({ action:"commitChunk", key });
-    const res = await fetch(`${GAS_URL}?${commitParams}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status} (commit)`);
-    return res.json();
+    return { success: true };
   }
+
+  // その他は従来通り
+  const params = new URLSearchParams({
+    action: "saveAll",
+    [key]: encodeURIComponent(JSON.stringify(data)),
+  });
+  const res = await fetch(`${GAS_URL}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 // ── カラーパレット ─────────────────────────────────────
