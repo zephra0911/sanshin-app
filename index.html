@@ -49,8 +49,11 @@ function extractDate(line, year) {
     return dateStr;
   };
 
-  // YYYY/MM/DD or YYYY-MM-DD: 年が明示されているのでそのまま使用（adjustYear不要）
+  // YYYY/MM/DD or YYYY-MM-DD: 年が明示されているのでそのまま使用
   let m = l.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
+  // YYYY年M月D日: 年が明示されているのでそのまま使用
+  m = l.match(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})\s*日/);
   if (m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
   // M月D日: 年なしなので未来日付チェックあり
   m = l.match(/(\d{1,2})月\s*(\d{1,2})\s*日/);
