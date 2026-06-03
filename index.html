@@ -377,19 +377,9 @@ function SanshinApp() {
           if (songsData && Object.keys(songsData).length > 0) {
             SONG_DB = songsData;
           }
-          if (Array.isArray(diaryData) && diaryData.length > 0) {
-            setDiary(diaryData);
-          } else {
-            // シートが空の場合はINITIAL_DIARYで初期化して保存
-            setDiary(INITIAL_DIARY);
-            gasPost("saveDiary", INITIAL_DIARY).catch(e => console.error("初期化保存エラー:", e));
-          }
-          if (Array.isArray(eventsData) && eventsData.length > 0) {
-            setEvents(eventsData);
-          } else {
-            // イベントも空なら初期データで保存
-            gasPost("saveEvents", BASE_EVENTS).catch(e => console.error("イベント初期化エラー:", e));
-          }
+          // GitHub Pages: シートのデータのみ使用（ハードコードは使わない）
+          if (Array.isArray(diaryData) && diaryData.length > 0) setDiary(diaryData);
+          if (Array.isArray(eventsData) && eventsData.length > 0) setEvents(eventsData);
           if (importData) setImportResult(importData);
         } catch(e) {
           console.error("GAS読み込みエラー:", e);
