@@ -848,7 +848,7 @@ function SanshinApp() {
       "②年ごとに着物組・ひよこ組それぞれの練習アドバイスと傾向分析をしてください。",
       "③イベントに向けて優先すべき曲をアドバイスしてください。",
       "結果のJSONはsummary（総括・文字列）、advice・analysisを年→着物組・ひよこ組のキーで分けてください。",
-      "例: {"summary":"...","advice":{"2025":{"着物組":"...","ひよこ組":"..."},"2026":{...}},"analysis":{"2025":{...},...}}",
+      "例: {summary:総括, advice:{2025:{着物組:...,ひよこ組:...},...}, analysis:{...}}",
       "",
       `【総記録回数】${diary.length}回`,
       "",
@@ -1297,23 +1297,7 @@ function SanshinApp() {
                 })()}
               </div>
               {importResult?.advice
-                ? (() => {
-                    const adv = importResult.advice;
-                    // 年別形式かどうか判定
-                    const isYearly = Object.keys(adv).some(k => /^\d{4}$/.test(k));
-                    if (isYearly) {
-                      return Object.keys(adv).sort().map(yr => (
-                        <div key={yr} style={{marginBottom:12}}>
-                          <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
-                          {adv[yr]["着物組"] && <div style={{marginBottom:6}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:4}}>{adv[yr]["着物組"]}</div></div>}
-                          {adv[yr]["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:4}}>{adv[yr]["ひよこ組"]}</div></div>}
-                        </div>
-                      ));
-                    }
-                    return typeof adv === "object"
-                      ? <>{adv["着物組"] && <div style={{marginBottom:8}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:6}}>{adv["着物組"]}</div></div>}{adv["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:6}}>{adv["ひよこ組"]}</div></div>}</>
-                      : <div style={S.importText}>{adv}</div>;
-                  })()
+                ? <AdviceBlock data={importResult.advice} />
                 : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
               }
             </div>
@@ -1333,22 +1317,7 @@ function SanshinApp() {
                 })()}
               </div>
               {importResult?.analysis
-                ? (() => {
-                    const ana = importResult.analysis;
-                    const isYearly = Object.keys(ana).some(k => /^\d{4}$/.test(k));
-                    if (isYearly) {
-                      return Object.keys(ana).sort().map(yr => (
-                        <div key={yr} style={{marginBottom:12}}>
-                          <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
-                          {ana[yr]["着物組"] && <div style={{marginBottom:6}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:4}}>{ana[yr]["着物組"]}</div></div>}
-                          {ana[yr]["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:4}}>{ana[yr]["ひよこ組"]}</div></div>}
-                        </div>
-                      ));
-                    }
-                    return typeof ana === "object"
-                      ? <>{ana["着物組"] && <div style={{marginBottom:8}}><div style={S.groupLabel}>🪸 着物組</div><div style={{...S.importText,marginTop:6}}>{ana["着物組"]}</div></div>}{ana["ひよこ組"] && <div><div style={S.groupLabel}>🐣 ひよこ組</div><div style={{...S.importText,marginTop:6}}>{ana["ひよこ組"]}</div></div>}</>
-                      : <div style={S.importText}>{ana}</div>;
-                  })()
+                ? <AdviceBlock data={importResult.analysis} />
                 : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
               }
             </div>
@@ -1539,6 +1508,52 @@ function SanshinApp() {
             </a>
             <button style={{...S.btn,...S.btnGhost,marginTop:8,width:"100%"}} onClick={()=>setTaruModal(null)}>閉じる</button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdviceBlock({data}) {
+  if (!data) return null;
+  if (typeof data === "string") return <div style={S.importText}>{data}</div>;
+  const keys = Object.keys(data).sort();
+  const isYearly = keys.every(k => k.length === 4 && !isNaN(k));
+  if (isYearly) {
+    return (
+      <div>
+        {keys.map(yr => (
+          <div key={yr} style={{marginBottom:12}}>
+            <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
+            {data[yr] && data[yr]["着物組"] && (
+              <div style={{marginBottom:6}}>
+                <div style={S.groupLabel}>🪸 着物組</div>
+                <div style={{...S.importText,marginTop:4}}>{data[yr]["着物組"]}</div>
+              </div>
+            )}
+            {data[yr] && data[yr]["ひよこ組"] && (
+              <div>
+                <div style={S.groupLabel}>🐣 ひよこ組</div>
+                <div style={{...S.importText,marginTop:4}}>{data[yr]["ひよこ組"]}</div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div>
+      {data["着物組"] && (
+        <div style={{marginBottom:8}}>
+          <div style={S.groupLabel}>🪸 着物組</div>
+          <div style={{...S.importText,marginTop:6}}>{data["着物組"]}</div>
+        </div>
+      )}
+      {data["ひよこ組"] && (
+        <div>
+          <div style={S.groupLabel}>🐣 ひよこ組</div>
+          <div style={{...S.importText,marginTop:6}}>{data["ひよこ組"]}</div>
         </div>
       )}
     </div>
