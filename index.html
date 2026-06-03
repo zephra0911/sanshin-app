@@ -845,10 +845,9 @@ function SanshinApp() {
     const lines = [
       "以下は結の会スージー三線教室のお稽古記録です。",
       "①総括として着物組・ひよこ組それぞれの全体的な傾向を2〜3文で簡潔にまとめてください。",
-      "②年ごとに着物組・ひよこ組それぞれの練習アドバイスをしてください。",
-      "③年ごとに着物組・ひよこ組それぞれの傾向分析をしてください。傾向分析は事実に基づく内容のみとし、指示や提案は含めないでください。",
-      "④イベントに向けて優先すべき曲をアドバイスしてください。",
-      "結果のJSONはsummary（総括・文字列）、advice・analysisを年→着物組・ひよこ組のキーで分けてください。",
+      "②年ごとに着物組・ひよこ組それぞれの傾向分析をしてください。傾向分析は事実に基づく内容のみとし、指示や提案は含めないでください。",
+      "③イベントに向けて優先すべき曲をアドバイスしてください。",
+      "結果のJSONはsummary（総括・文字列）、analysisを年→着物組・ひよこ組のキーで分けてください。",
       `例: {summary:"総括", advice:{"2025":{"着物組":"..."}}, analysis:{...}}`,
       "",
       `【総記録回数】${diary.length}回`,
@@ -1289,26 +1288,6 @@ function SanshinApp() {
                 <div style={S.importText}>{importResult.summary}</div>
               </div>
             )}
-
-            {/* アドバイス */}
-            <div style={S.adviceCard}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <div style={S.adviceHeader}>💬 練習アドバイス</div>
-                {importResult?.updatedAt && (() => {
-                  const days = Math.floor((new Date() - new Date(importResult.updatedAt)) / 86400000);
-                  return (
-                    <>
-                      <span style={{fontSize:11,color:C.sub}}>{importResult.updatedAt}</span>
-                      {days <= 3 && <span style={{...S.newBadge}}>NEW</span>}
-                    </>
-                  );
-                })()}
-              </div>
-              {importResult?.advice
-                ? <AdviceBlock data={importResult.advice} />
-                : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
-              }
-            </div>
 
             {/* 傾向分析 */}
             <div style={S.adviceCard}>
