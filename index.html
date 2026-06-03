@@ -127,7 +127,7 @@ function parseLineText(text, overrideDate) {
 }
 
 // ── 曲名DB ────────────────────────────────────────────
-let SONG_DB = {
+const SONG_DB_DEFAULT = {
   "001": { title: "安里屋ユンタ" },
   "002": { title: "てぃんさぐぬ花" },
   "011": { title: "十九の春" },
@@ -170,6 +170,7 @@ let SONG_DB = {
   "258": { title: "国頭大福(?)" },
   "281": { title: "片思い(?)" },
 };
+let SONG_DB = {...SONG_DB_DEFAULT};
 
 // ── アヤメ会（最終日曜日） ────────────────────────────
 function lastSunday(year, month) {
@@ -382,6 +383,7 @@ const C = {
 // ── メインアプリ ───────────────────────────────────────
 function SanshinApp() {
   const [tab, setTab] = useState("advice");
+  const [songDB, setSongDB] = useState(SONG_DB_DEFAULT);
   const [diary, setDiary] = useState([]);
   const [events, setEvents] = useState(BASE_EVENTS);
 
@@ -429,6 +431,7 @@ function SanshinApp() {
           // 曲マスタをSONG_DBに反映
           if (songsData && Object.keys(songsData).length > 0) {
             SONG_DB = songsData;
+            setSongDB(songsData);
           }
           // GitHub Pages: シートのデータのみ使用（ハードコードは使わない）
           if (Array.isArray(diaryData) && diaryData.length > 0) setDiary(diaryData);
@@ -459,6 +462,9 @@ function SanshinApp() {
       if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); }
       if (Array.isArray(eventsData) && eventsData.length > 0) { setEvents(eventsData); }
       if (importData) { setImportResult(importData); }
+      // 曲マスタも再読み込み
+      const songsData2 = await gasGet("getSongs");
+      if (songsData2 && Object.keys(songsData2).length > 0) { SONG_DB = songsData2; setSongDB(songsData2); }
       setGasStatus(`✅ 読み込み完了（日誌${Array.isArray(diaryData)?diaryData.length:0}回）`);
     } catch(e) {
       setGasStatus(`❌ 読み込み失敗: ${e.message}`);
@@ -750,7 +756,7 @@ function SanshinApp() {
                       return (
                         <div key={grp} style={S.groupSection}>
                           <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
-                          {gs.map(s=><SongRow key={s.order} song={s}/>)}
+                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB}/>)}
                         </div>
                       );
                     })}
@@ -811,7 +817,7 @@ function SanshinApp() {
                         return (
                           <div key={grp} style={S.groupSection}>
                             <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
-                            {gs.map(s=><SongRow key={s.order} song={s}/>)}
+                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB}/>)}
                           </div>
                         );
                       })}
@@ -1266,8 +1272,8 @@ function SanshinApp() {
   );
 }
 
-function SongRow({song, highlight}) {
-  const isUnknown = !SONG_DB[song.number] || highlight;
+function SongRow({song, highlight, songDB=SONG_DB}) {
+  const isUnknown = !songDB[song.number] || highlight;
   return (
     <div style={{...S.songRow, borderLeft: isUnknown ? "3px solid #e67e22" : `3px solid ${C.gold}`, background: isUnknown ? "#fff8f0" : "#faf7f2"}}>
       <span style={S.songOrder}>#{song.order}</span>
