@@ -926,8 +926,9 @@ function SanshinApp() {
   // ── 集計 ──────────────────────────────────────────────
   const songStats = {};
   diary.forEach(d => d.songs?.forEach(s => {
-    if (!songStats[s.number]) songStats[s.number] = {title:s.title, count:0};
+    if (!songStats[s.number]) songStats[s.number] = {title:s.title, count:0, lastDate:""};
     songStats[s.number].count++;
+    if (!songStats[s.number].lastDate) songStats[s.number].lastDate = d.date;
   }));
 
   const maxSongCount = Object.values(songStats).reduce((m, s) => Math.max(m, s.count), 1);
@@ -948,7 +949,7 @@ function SanshinApp() {
     <div id="app-scroll" style={{...S.app,overflowY:"auto",height:"100vh"}}>
       {gasLoading && (
         <div style={{position:"fixed",inset:0,background:"rgba(255,255,255,0.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:999}}>
-          <div style={{fontSize:32,marginBottom:12}}>三</div>
+          <div style={{fontSize:32,marginBottom:12}}>結</div>
           <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>読み込み中...</div>
         </div>
       )}
@@ -1253,6 +1254,11 @@ function SanshinApp() {
                           <span style={S.songNum}>{num}</span>
                           <span style={S.songTitle}>{info.title}</span>
                           <span style={S.statCount}>{info.count}回</span>
+                          {info.lastDate && (
+                            <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
+                              {info.lastDate.replace(/-/g, "/")}
+                            </span>
+                          )}
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
@@ -1287,7 +1293,7 @@ function SanshinApp() {
             {/* アドバイス */}
             <div style={S.adviceCard}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <div style={S.adviceHeader}>💬 アドバイス</div>
+                <div style={S.adviceHeader}>💬 練習アドバイス</div>
                 {importResult?.updatedAt && (() => {
                   const days = Math.floor((new Date() - new Date(importResult.updatedAt)) / 86400000);
                   return (
@@ -1519,7 +1525,7 @@ function SanshinApp() {
 function AdviceBlock({data}) {
   if (!data) return null;
   if (typeof data === "string") return <div style={S.importText}>{data}</div>;
-  const keys = Object.keys(data).sort();
+  const keys = Object.keys(data).sort().reverse();
   const isYearly = keys.every(k => k.length === 4 && !isNaN(k));
   if (isYearly) {
     return (
