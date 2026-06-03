@@ -575,38 +575,33 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
-function gasPostSync(action, data) {
+function gasPost(action, data) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
   var key = action === "saveDiary" ? "diary"
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
   if (!key) return Promise.reject(new Error("unknown action"));
   var jsonStr = JSON.stringify(data);
-  var CHUNK = 1500;
-  if (jsonStr.length <= CHUNK) {
-    var p = new URLSearchParams({ action:"saveAll" });
-    p.set(key, jsonStr);
-    return fetch(GAS_URL + "?" + p.toString()).then(function(r){ return r.json(); });
-  }
-  // チャンク分割
+  // チャンク分割送信（URLの長さ制限を回避）
+  var CHUNK = 500;
   var chunks = [];
   for (var i = 0; i < jsonStr.length; i += CHUNK) chunks.push(jsonStr.slice(i, i+CHUNK));
   var promise = Promise.resolve();
   chunks.forEach(function(chunk, idx) {
     promise = promise.then(function() {
-      var p2 = new URLSearchParams({ action:"saveChunk", index:idx, total:chunks.length });
-      p2.set("key", key);
-      p2.set("chunk", chunk);
-      return fetch(GAS_URL + "?" + p2.toString()).then(function(r){ return r.json(); });
+      var url = GAS_URL + "?action=saveChunk"
+        + "&key=" + encodeURIComponent(key)
+        + "&chunk=" + encodeURIComponent(chunk)
+        + "&index=" + idx
+        + "&total=" + chunks.length;
+      return fetch(url).then(function(r){ return r.json(); });
     });
   });
   return promise.then(function() {
-    var p3 = new URLSearchParams({ action:"commitChunk" });
-    p3.set("key", key);
-    return fetch(GAS_URL + "?" + p3.toString()).then(function(r){ return r.json(); });
+    var url = GAS_URL + "?action=commitChunk&key=" + encodeURIComponent(key);
+    return fetch(url).then(function(r){ return r.json(); });
   });
 }
-var gasPost = gasPostSync;
 
 // ── カラーパレット ─────────────────────────────────────
 const C = {
