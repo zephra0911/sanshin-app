@@ -101,7 +101,13 @@ function parseLineText(text, overrideDate) {
       if (sm) {
         const num = normalizeNumber(sm[1]);
         const titleRaw = sm[2].replace(/🆕/g,"").replace(/[\u{1F300}-\u{1FFFF}]/gu,"").trim();
-        songs.push({ order: order++, number: num, title: SONG_DB[num]?.title || titleRaw, group });
+        const titleFromDB = SONG_DB[num]?.title;
+        // SONG_DBにない場合は自動追加
+        if (!titleFromDB && titleRaw && titleRaw.length > 1) {
+          SONG_DB[num] = { title: titleRaw };
+          gasSaveSong(num, titleRaw);
+        }
+        songs.push({ order: order++, number: num, title: titleFromDB || titleRaw, group });
       }
     }
     return { date: overrideDate || block.date, dateFound: block.dateFound, songs };
@@ -300,6 +306,15 @@ async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+async function gasSaveSong(number, title) {
+  if (!IS_PRODUCTION) return;
+  const params = new URLSearchParams({
+    action: "saveAll",
+    newSong: encodeURIComponent(JSON.stringify({ number, title })),
+  });
+  fetch(`${GAS_URL}?${params}`).catch(e => console.error("曲追加エラー:", e));
 }
 
 async function gasPost(action, data) {
@@ -1148,12 +1163,14 @@ function SanshinApp() {
   );
 }
 
-function SongRow({song}) {
+function SongRow({song, highlight}) {
+  const isUnknown = !SONG_DB[song.number] || highlight;
   return (
-    <div style={{...S.songRow}}>
+    <div style={{...S.songRow, borderLeft: isUnknown ? "3px solid #e67e22" : `3px solid ${C.gold}`, background: isUnknown ? "#fff8f0" : "#faf7f2"}}>
       <span style={S.songOrder}>#{song.order}</span>
-      <span style={S.songNum}>{song.number}</span>
+      <span style={{...S.songNum, background: isUnknown ? "#e67e22" : C.border, color: isUnknown ? "#fff" : C.sub}}>{song.number}</span>
       <span style={S.songTitle}>{song.title}</span>
+      {isUnknown && <span style={{fontSize:10,color:"#e67e22",fontWeight:"bold",whiteSpace:"nowrap"}}>⚠️ 未登録</span>}
     </div>
   );
 }
