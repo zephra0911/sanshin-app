@@ -596,9 +596,32 @@ function SanshinApp() {
   };
 
   const handleCopyExport = () => {
-    navigator.clipboard?.writeText(exportText);
-    setExportCopied(true);
-    setTimeout(() => setExportCopied(false), 2000);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(exportText).then(() => {
+        setExportCopied(true);
+        setTimeout(() => setExportCopied(false), 2000);
+      }).catch(() => fallbackCopy());
+    } else {
+      fallbackCopy();
+    }
+  };
+
+  const fallbackCopy = () => {
+    const el = document.createElement("textarea");
+    el.value = exportText;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try {
+      document.execCommand("copy");
+      setExportCopied(true);
+      setTimeout(() => setExportCopied(false), 2000);
+    } catch(e) {
+      console.error("コピー失敗:", e);
+    }
+    document.body.removeChild(el);
   };
 
   // ── インポート ────────────────────────────────────────
@@ -609,9 +632,13 @@ function SanshinApp() {
       if (match) {
         const data = JSON.parse(match[0]);
         if (data.advice || data.recommendations || data.analysis) {
-          setImportResult(data);
-        gasPost("saveImport", data).catch(e => console.error("GAS保存エラー:", e));
-        return;
+          const dataWithDate = { ...data, updatedAt: new Date().toISOString().slice(0,10) };
+          setImportResult(dataWithDate);
+          setImportMsg("✅ インポートしました");
+          setImportText("");
+          // スプレッドシートに自動保存
+          gasPost("saveImport", dataWithDate).catch(e => console.error("GAS保存エラー:", e));
+          return;
         }
       }
       throw new Error("対応するデータ形式が見つかりません");
@@ -796,7 +823,7 @@ function SanshinApp() {
                 ＋ 追加
               </button>
             </div>
-            {events.map(ev=>{
+            {events.filter(ev => (new Date() - new Date(ev.date)) / 86400000 <= 14).map(ev=>{
               const past = ev.date < today;
               return (
                 <div key={ev.id}>
@@ -970,33 +997,20 @@ function SanshinApp() {
           <div style={S.section}>
             <h2 style={S.sectionTitle}>🤖 AI分析</h2>
 
-            {/* スプレッドシート連携 */}
-            <div style={S.adviceCard}>
-              <div style={S.adviceHeader}>📊 スプレッドシート連携</div>
-              <div style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:IS_PRODUCTION?C.tealLight:"#fff8e1",color:IS_PRODUCTION?C.teal:"#7a6000",display:"inline-block"}}>
-                {IS_PRODUCTION ? "🌐 本番モード（スプレッドシート連携中）" : "🧪 テストモード（ハードコードデータ使用中）"}
-              </div>
-              <p style={{...S.hint,margin:0}}>Googleスプレッドシートとデータを同期します。</p>
-              <div style={{display:"flex",gap:8}}>
-                <button style={{...S.btn,background:C.teal,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
-                  onClick={handleLoadFromGAS} disabled={gasSyncing}>
-                  {gasSyncing?"⏳ 処理中...":"📥 シートから読込"}
-                </button>
-                <button style={{...S.btn,background:C.gold,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
-                  onClick={handleSaveToGAS} disabled={gasSyncing}>
-                  {gasSyncing?"⏳ 処理中...":"📤 シートへ保存"}
-                </button>
-              </div>
-              {gasStatus && (
-                <div style={{fontSize:13,color:gasStatus.startsWith("✅")?C.teal:gasStatus.startsWith("⚠️")?"#f39c12":C.accent}}>
-                  {gasStatus}
-                </div>
-              )}
-            </div>
-
             {/* アドバイス */}
             <div style={S.adviceCard}>
-              <div style={S.adviceHeader}>💬 アドバイス</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={S.adviceHeader}>💬 アドバイス</div>
+                {importResult?.updatedAt && (() => {
+                  const days = Math.floor((new Date() - new Date(importResult.updatedAt)) / 86400000);
+                  return (
+                    <>
+                      <span style={{fontSize:11,color:C.sub}}>{importResult.updatedAt}</span>
+                      {days <= 3 && <span style={{...S.newBadge}}>NEW</span>}
+                    </>
+                  );
+                })()}
+              </div>
               {importResult?.advice
                 ? typeof importResult.advice === "object"
                   ? <>
@@ -1020,7 +1034,18 @@ function SanshinApp() {
 
             {/* 傾向分析 */}
             <div style={S.adviceCard}>
-              <div style={S.adviceHeader}>📊 傾向分析</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={S.adviceHeader}>📊 傾向分析</div>
+                {importResult?.updatedAt && (() => {
+                  const days = Math.floor((new Date() - new Date(importResult.updatedAt)) / 86400000);
+                  return (
+                    <>
+                      <span style={{fontSize:11,color:C.sub}}>{importResult.updatedAt}</span>
+                      {days <= 3 && <span style={{...S.newBadge}}>NEW</span>}
+                    </>
+                  );
+                })()}
+              </div>
               {importResult?.analysis
                 ? typeof importResult.analysis === "object"
                   ? <>
@@ -1065,6 +1090,30 @@ function SanshinApp() {
                 value={importText} onChange={e=>setImportText(e.target.value)}/>
               <button style={{...S.btn,...S.btnPrimary}} onClick={handleImport}>📥 読み込む</button>
               {importMsg && <div style={{fontSize:13,color:importMsg.startsWith("✅")?C.teal:C.accent}}>{importMsg}</div>}
+            </div>
+
+            {/* スプレッドシート連携 */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>📊 スプレッドシート連携</div>
+              <div style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:IS_PRODUCTION?C.tealLight:"#fff8e1",color:IS_PRODUCTION?C.teal:"#7a6000",display:"inline-block"}}>
+                {IS_PRODUCTION ? "🌐 本番モード（スプレッドシート連携中）" : "🧪 テストモード（ハードコードデータ使用中）"}
+              </div>
+              <p style={{...S.hint,margin:0}}>Googleスプレッドシートとデータを同期します。</p>
+              <div style={{display:"flex",gap:8}}>
+                <button style={{...S.btn,background:C.teal,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
+                  onClick={handleLoadFromGAS} disabled={gasSyncing}>
+                  {gasSyncing?"⏳ 処理中...":"📥 シートから読込"}
+                </button>
+                <button style={{...S.btn,background:C.gold,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
+                  onClick={handleSaveToGAS} disabled={gasSyncing}>
+                  {gasSyncing?"⏳ 処理中...":"📤 シートへ保存"}
+                </button>
+              </div>
+              {gasStatus && (
+                <div style={{fontSize:13,color:gasStatus.startsWith("✅")?C.teal:gasStatus.startsWith("⚠️")?"#f39c12":C.accent}}>
+                  {gasStatus}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1115,8 +1164,9 @@ function SanshinApp() {
                       <input style={{...S.dateInput,width:52,padding:"6px 8px",fontSize:12}} placeholder="番号"
                         value={s.number}
                         onChange={e=>{
-                          const num=String(e.target.value).padStart(3,"0");
-                          handleEditSongChange(gi,"number",e.target.value);
+                          const raw = toHankaku(e.target.value);
+                          const num = String(raw).padStart(3,"0");
+                          handleEditSongChange(gi,"number",raw);
                           if(SONG_DB[num]) handleEditSongChange(gi,"title",SONG_DB[num].title);
                         }}/>
                       <input style={{...S.dateInput,flex:1,padding:"6px 8px",fontSize:12}} placeholder="曲名"
