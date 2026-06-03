@@ -111,7 +111,7 @@ function parseLineText(text, overrideDate) {
 }
 
 // ── 曲名DB ────────────────────────────────────────────
-const SONG_DB = {
+let SONG_DB = {
   "001": { title: "安里屋ユンタ" },
   "002": { title: "てぃんさぐぬ花" },
   "011": { title: "十九の春" },
@@ -367,11 +367,16 @@ function SanshinApp() {
       if (IS_PRODUCTION) {
         // GitHub Pages: スプレッドシートから読み込む
         try {
-          const [diaryData, eventsData, importData] = await Promise.all([
+          const [diaryData, eventsData, importData, songsData] = await Promise.all([
             gasGet("getDiary"),
             gasGet("getEvents"),
             gasGet("getImport"),
+            gasGet("getSongs"),
           ]);
+          // 曲マスタをSONG_DBに反映
+          if (songsData && Object.keys(songsData).length > 0) {
+            SONG_DB = songsData;
+          }
           if (Array.isArray(diaryData) && diaryData.length > 0) {
             setDiary(diaryData);
           } else {
