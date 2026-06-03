@@ -320,18 +320,45 @@ async function gasSaveSong(number, title) {
 async function gasPost(action, data) {
   // Artifact環境では保存しない
   if (!IS_PRODUCTION) return { success: true, skipped: true };
-  // GitHub Pages: GETパラメータ方式で保存（CORS対策）
   const key = action === "saveDiary" ? "diary"
     : action === "saveEvents" ? "events"
     : action === "saveImport" ? "importResult" : null;
   if (!key) throw new Error("unknown action");
-  const params = new URLSearchParams({
-    action: "saveAll",
-    [key]: encodeURIComponent(JSON.stringify(data)),
-  });
-  const res = await fetch(`${GAS_URL}?${params}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+
+  // データが大きい場合はJSON文字列を分割して送信
+  const jsonStr = JSON.stringify(data);
+  const CHUNK_SIZE = 1500;
+
+  if (jsonStr.length <= CHUNK_SIZE) {
+    // 小さいデータはそのまま送信
+    const params = new URLSearchParams({ action:"saveAll", [key]: encodeURIComponent(jsonStr) });
+    const res = await fetch(`${GAS_URL}?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } else {
+    // 大きいデータはチャンク分割して送信
+    const chunks = [];
+    for (let i = 0; i < jsonStr.length; i += CHUNK_SIZE) {
+      chunks.push(jsonStr.slice(i, i + CHUNK_SIZE));
+    }
+    const total = chunks.length;
+    for (let i = 0; i < total; i++) {
+      const params = new URLSearchParams({
+        action: "saveChunk",
+        key,
+        chunk: encodeURIComponent(chunks[i]),
+        index: i,
+        total,
+      });
+      const res = await fetch(`${GAS_URL}?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} (chunk ${i})`);
+    }
+    // 全チャンク送信後にコミット
+    const commitParams = new URLSearchParams({ action:"commitChunk", key });
+    const res = await fetch(`${GAS_URL}?${commitParams}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} (commit)`);
+    return res.json();
+  }
 }
 
 // ── カラーパレット ─────────────────────────────────────
