@@ -575,6 +575,23 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
+function gasCheckUser(name) {
+  if (!IS_PRODUCTION) return Promise.resolve({ exists: true });
+  return fetch(GAS_URL + "?action=checkUser&name=" + encodeURIComponent(name))
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return { exists: false }; });
+}
+
+function gasRegisterUser(name) {
+  if (!IS_PRODUCTION) return Promise.resolve();
+  return fetch(GAS_URL + "?action=registerUser&name=" + encodeURIComponent(name));
+}
+
+function gasVoteSongs(nums) {
+  if (!IS_PRODUCTION) return Promise.resolve();
+  return fetch(GAS_URL + "?action=voteSongs&nums=" + encodeURIComponent(JSON.stringify(nums)));
+}
+
 function gasPost(action, data) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
   var key = action === "saveDiary" ? "diary"
@@ -612,6 +629,15 @@ const C = {
 
 // ── メインアプリ ───────────────────────────────────────
 function SanshinApp() {
+  // ── ログイン ──────────────────────────────────────────
+  const [loginStep, setLoginStep] = useState("name"); // name, quiz, done
+  const [loginName, setLoginName] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [quizSongs, setQuizSongs] = useState([]);
+  const [selectedSongs, setSelectedSongs] = useState([]);
+  const [isNewUser, setIsNewUser] = useState(false);
+
   const [tab, setTab] = useState("advice");
   const [songDB, setSongDB] = useState(SONG_DB_DEFAULT);
   const [diary, setDiary] = useState([]);
@@ -643,6 +669,57 @@ function SanshinApp() {
   const [textCopied, setTextCopied] = useState(false);
   const [gasStatus, setGasStatus] = useState(""); // GAS連携ステータス
   const [gasSyncing, setGasSyncing] = useState(false);
+
+  // ── ログイン処理 ──────────────────────────────────────
+  const handleLoginName = async () => {
+    if (!loginName.trim()) { setLoginError("名前を入力してください"); return; }
+    setLoginError("");
+    if (IS_PRODUCTION) {
+      const result = await gasCheckUser(loginName.trim());
+      setIsNewUser(!result.exists);
+      if (result.exists) {
+        // 既存ユーザー：クイズへ
+        const keys = Object.keys(SONG_DB);
+        const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
+        setQuizSongs(shuffled.map(k => ({ number: k, title: SONG_DB[k].title })));
+        setSelectedSongs([]);
+        setLoginStep("quiz");
+      } else {
+        // 新規ユーザー：パスワード入力へ
+        setLoginStep("password");
+      }
+    } else {
+      // Artifact: クイズへ
+      const keys = Object.keys(SONG_DB_DEFAULT);
+      const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
+      setQuizSongs(shuffled.map(k => ({ number: k, title: SONG_DB_DEFAULT[k].title })));
+      setSelectedSongs([]);
+      setLoginStep("quiz");
+    }
+  };
+
+  const handleLoginPassword = () => {
+    if (loginPassword === "777") {
+      gasRegisterUser(loginName.trim());
+      setLoginStep("done");
+    } else {
+      setLoginError("パスワードが違います");
+    }
+  };
+
+  const handleLoginQuiz = () => {
+    if (selectedSongs.length !== 2) { setLoginError("2曲選んでください"); return; }
+    gasVoteSongs(selectedSongs).catch(e => console.error("投票エラー:", e));
+    setLoginStep("done");
+  };
+
+  const toggleSongSelect = (num) => {
+    setSelectedSongs(prev =>
+      prev.includes(num)
+        ? prev.filter(n => n !== num)
+        : prev.length < 2 ? [...prev, num] : prev
+    );
+  };
 
   // ── 起動時自動読み込み ───────────────────────────────
   const [gasLoading, setGasLoading] = useState(true);
@@ -950,6 +1027,74 @@ function SanshinApp() {
         <div style={{position:"fixed",inset:0,background:"rgba(255,255,255,0.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:999}}>
           <div style={{fontSize:32,marginBottom:12}}>結</div>
           <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>読み込み中...</div>
+        </div>
+      )}
+
+      {/* ── ログインモーダル ── */}
+      {!gasLoading && loginStep !== "done" && (
+        <div style={{position:"fixed",inset:0,background:"rgba(26,107,90,0.95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:998,padding:24}}>
+          <div style={{fontSize:40,color:"#f0c040",marginBottom:8,fontFamily:"'Hiragino Sans','Yu Gothic',sans-serif",fontWeight:"bold"}}>ス</div>
+          <div style={{color:"#fff",fontSize:16,fontWeight:"bold",marginBottom:4}}>結の会スージー三線教室</div>
+          <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:24}}>お稽古管理アプリ</div>
+
+          <div style={{background:"#fffdf8",borderRadius:16,padding:24,width:"100%",maxWidth:360,display:"flex",flexDirection:"column",gap:12}}>
+
+            {/* 名前入力 */}
+            {loginStep === "name" && (
+              <>
+                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>どなたですか？</div>
+                <input type="text" style={S.dateInput} placeholder="お名前を入力してください"
+                  value={loginName} onChange={e=>setLoginName(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&handleLoginName()}/>
+                {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
+                <button style={{...S.btn,...S.btnPrimary}} onClick={handleLoginName}>ログイン</button>
+              </>
+            )}
+
+            {/* パスワード入力（新規ユーザー） */}
+            {loginStep === "password" && (
+              <>
+                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>はじめまして！{loginName}さん</div>
+                <div style={{fontSize:13,color:C.sub}}>パスワードを入力してください</div>
+                <input type="password" style={S.dateInput} placeholder="パスワード"
+                  value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&handleLoginPassword()}/>
+                {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
+                <button style={{...S.btn,...S.btnPrimary}} onClick={handleLoginPassword}>ログイン</button>
+                <button style={{...S.btn,...S.btnGhost,fontSize:12}} onClick={()=>{setLoginStep("name");setLoginError("");}}>戻る</button>
+              </>
+            )}
+
+            {/* 曲クイズ（既存ユーザー） */}
+            {loginStep === "quiz" && (
+              <>
+                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>ハイサイ！{loginName}さん🎵</div>
+                <div style={{fontSize:13,color:C.text}}>この中で好きな曲はどれかな？<br/><span style={{fontSize:11,color:C.sub}}>2曲選んでください</span></div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {quizSongs.map(s => (
+                    <div key={s.number}
+                      onClick={()=>toggleSongSelect(s.number)}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,border:`2px solid ${selectedSongs.includes(s.number)?C.teal:C.border}`,background:selectedSongs.includes(s.number)?C.tealLight:"#faf7f2",cursor:"pointer"}}>
+                      <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${selectedSongs.includes(s.number)?C.teal:C.border}`,background:selectedSongs.includes(s.number)?C.teal:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {selectedSongs.includes(s.number) && <span style={{color:"#fff",fontSize:12}}>✓</span>}
+                      </div>
+                      <span style={{fontSize:11,color:C.sub,minWidth:28}}>{s.number}</span>
+                      <span style={{fontSize:14,fontWeight:"500"}}>{s.title}</span>
+                    </div>
+                  ))}
+                </div>
+                {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>setLoginStep("done")}>
+                    SKIP
+                  </button>
+                  <button style={{...S.btn,...S.btnPrimary,flex:1,opacity:selectedSongs.length===2?1:0.5}} onClick={handleLoginQuiz}>
+                    投票 ({selectedSongs.length}/2)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
       {/* ヘッダー */}
