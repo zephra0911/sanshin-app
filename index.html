@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="三線教室">
+  <title>結の会スージー三線教室</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #fdf6ec; font-family: 'Hiragino Mincho ProN','Yu Mincho','Georgia',serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+// ── ユーティリティ ─────────────────────────────────────
+function taruGoogleUrl(title) {
+  return `https://www.google.com/search?q=site:taru.ti-da.net+${encodeURIComponent(title)}`;
+}
+
+function getMastery(count) {
+  if (count >= 10) return { stage: "🏆 暗譜完璧", color: "#d4af37", bg: "#fffbea" };
+  if (count >= 7)  return { stage: "⭐ 仕上げ",   color: "#e67e22", bg: "#fef5ec" };
+  if (count >= 5)  return { stage: "📈 定着中",   color: "#27ae60", bg: "#eafaf1" };
+  if (count >= 3)  return { stage: "🎵 練習中",   color: "#2980b9", bg: "#eaf4fb" };
+  return           { stage: "🌱 導入",            color: "#7f8c8d", bg: "#f4f6f7" };
+}
+
+function toHankaku(str) {
+  return str.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+}
+
+function extractDate(line, year) {
+  const l = toHankaku(line);
+  let m = l.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
+  m = l.match(/(\d{1,2})月\s*(\d{1,2})\s*日/);
+  if (m) return `${year}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+  m = l.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+  if (m) return `${year}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+  return null;
+}
+
+function normalizeNumber(raw) {
+  return String(raw).replace(/[-－].+$/, "").padStart(3, "0");
+}
+
+function generateTemplate(session) {
+  if (!session) return "";
+  const today = new Date();
+  const y = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,"0");
+  const dd = String(today.getDate()).padStart(2,"0");
+  const kimono = session.songs.filter(s => s.group === "着物組");
+  const hiyoko = session.songs.filter(s => s.group === "ひよこ組");
+  return [
+    `${y}/${mm}/${dd}のお稽古曲です`,
+    "",
+    "第一部",
+    ...kimono.map(s => `${parseInt(s.number)} ${s.title}`),
+    "",
+    "第二部",
+    ...hiyoko.map(s => `${parseInt(s.number)} ${s.title}`),
+    "",
+    "以上でした〜",
+  ].join("\n");
+}
+
+function parseLineText(text, overrideDate) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const year = new Date().getFullYear();
+  const blocks = [];
+  let current = null;
+  for (const line of lines) {
+    const d = extractDate(line, year);
+    if (d) {
+      current = { date: d, dateFound: true, lines: [] };
+      blocks.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (blocks.length === 0) {
+    blocks.push({ date: new Date().toISOString().slice(0,10), dateFound: false, lines });
+  }
+  const results = blocks.map(block => {
+    const songs = [];
+    let group = "着物組";
+    let order = 1;
+    for (const line of block.lines) {
+      if (/第?[2二]部|後半|ひよこ組/.test(line)) { group = "ひよこ組"; continue; }
+      if (/第?[1一]部|前半|着物組/.test(line)) { group = "着物組"; continue; }
+      const sm = line.match(/^(\d{1,3}[-－]?\d*)\s*(.+)/);
+      if (sm) {
+        const num = normalizeNumber(sm[1]);
+        const titleRaw = sm[2].replace(/🆕/g,"").replace(/[\u{1F300}-\u{1FFFF}]/gu,"").trim();
+        songs.push({ order: order++, number: num, title: SONG_DB[num]?.title || titleRaw, group });
+      }
+    }
+    return { date: overrideDate || block.date, dateFound: block.dateFound, songs };
+  }).filter(r => r.songs.length > 0);
+  if (results.length === 0) throw new Error("曲が見つかりませんでした");
+  return results;
+}
+
+// ── 曲名DB ────────────────────────────────────────────
+const SONG_DB = {
+  "001": { title: "安里屋ユンタ" },
+  "002": { title: "てぃんさぐぬ花" },
+  "011": { title: "十九の春" },
+  "023": { title: "あやぐ" },
+  "025": { title: "ヒヤミカチ節" },
+  "034": { title: "芭蕉布" },
+  "035": { title: "オジー自慢のオリオンビール" },
+  "044": { title: "伊良部トーガニ" },
+  "046": { title: "梅の香り" },
+  "048": { title: "サイサイ節" },
+  "058": { title: "かぎやで風節" },
+  "070": { title: "海のちんぼうら" },
+  "079": { title: "ちんぬくじゅうしい" },
+  "089": { title: "豊年のあやぐ" },
+  "091": { title: "じっちゅ" },
+  "092": { title: "八重山育ち" },
+  "096": { title: "伊江島渡し船" },
+  "119": { title: "稲摺節" },
+  "121": { title: "沖縄（うちなー）" },
+  "126": { title: "太陽ぬ子" },
+  "158": { title: "とぅばらーま" },
+  "204": { title: "加那ヨー" },
+  "213": { title: "パラダイスうるま島" },
+  "217": { title: "ちでぃん口説" },
+  "218": { title: "ハリヨイ美童" },
+  "238": { title: "ホップのとぅばらーま" },
+  "239": { title: "スーキカンナー" },
+  "241": { title: "踊いくわでぃさ節" },
+  "242": { title: "宮国ぬ姉小" },
+  "243": { title: "前之浜〜坂原口説〜与那原節" },
+  "244": { title: "懐かしき故郷" },
+  "245": { title: "銭節" },
+  "246": { title: "となり組ヘイヘイ" },
+  "247": { title: "世果報でーびる" },
+  "248": { title: "国頭大福" },
+  "249": { title: "オートークガニー" },
+  "250": { title: "ふるさとの雨" },
+  "251": { title: "片思い" },
+  "252": { title: "かりゆし雨小" },
+  "258": { title: "国頭大福(?)" },
+  "281": { title: "片思い(?)" },
+};
+
+// ── アヤメ会（最終日曜日） ────────────────────────────
+function lastSunday(year, month) {
+  const last = new Date(year, month, 0);
+  while (last.getDay() !== 0) last.setDate(last.getDate() - 1);
+  const y = last.getFullYear();
+  const m = String(last.getMonth()+1).padStart(2,"0");
+  const d = String(last.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+}
+
+const AYAME = [
+  {month:4,year:2026},{month:7,year:2026},{month:10,year:2026},{month:1,year:2027}
+].map((e,i) => ({ id:10+i, date:lastSunday(e.year,e.month), title:"アヤメ会表彰式", confirmed:true }));
+
+const BASE_EVENTS = [
+  { id:1, date:"2026-07-12", title:"夏の唄会",  confirmed:true,  time:"", place:"" },
+  { id:2, date:"2026-12-20", title:"忘年会",     confirmed:false, time:"", place:"" },
+  { id:3, date:"2027-01-11", title:"新年唄会",   confirmed:false, time:"", place:"" },
+  ...AYAME.map(e => ({...e, time:"", place:""})),
+].sort((a,b) => a.date.localeCompare(b.date));
+
+// ── 初期データ（Artifact用テストデータ） ──────────────
+const INITIAL_DIARY = [
+  { date:"2026-06-01", songs:[
+    {order:1,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:2,number:"119",title:"稲摺節",group:"着物組"},
+    {order:3,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:4,number:"281",title:"片思い(?)",group:"着物組"},
+    {order:5,number:"248",title:"国頭大福",group:"着物組"},
+    {order:6,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:7,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
+    {order:8,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:9,number:"250",title:"ふるさとの雨",group:"ひよこ組"},
+    {order:10,number:"089",title:"豊年のあやぐ",group:"ひよこ組"},
+    {order:11,number:"126",title:"太陽ぬ子",group:"ひよこ組"},
+    {order:12,number:"252",title:"かりゆし雨小",group:"ひよこ組"},
+    {order:13,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:14,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-05-30", songs:[
+    {order:1,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:2,number:"119",title:"稲摺節",group:"着物組"},
+    {order:3,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:4,number:"281",title:"片思い(?)",group:"着物組"},
+    {order:5,number:"248",title:"国頭大福",group:"着物組"},
+    {order:6,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:7,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
+    {order:8,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:9,number:"250",title:"ふるさとの雨",group:"ひよこ組"},
+    {order:10,number:"089",title:"豊年のあやぐ",group:"ひよこ組"},
+    {order:11,number:"126",title:"太陽ぬ子",group:"ひよこ組"},
+    {order:12,number:"252",title:"かりゆし雨小",group:"ひよこ組"},
+    {order:13,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:14,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-05-23", songs:[
+    {order:1,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:2,number:"119",title:"稲摺節",group:"着物組"},
+    {order:3,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:4,number:"251",title:"片思い",group:"着物組"},
+    {order:5,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:6,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:7,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
+    {order:8,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:9,number:"126",title:"太陽ぬ子",group:"ひよこ組"},
+    {order:10,number:"250",title:"ふるさとの雨",group:"ひよこ組"},
+    {order:11,number:"252",title:"かりゆし雨小",group:"ひよこ組"},
+    {order:12,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:13,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-05-16", songs:[
+    {order:1,number:"058",title:"かぎやで風節",group:"着物組"},
+    {order:2,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:3,number:"248",title:"国頭大福",group:"着物組"},
+    {order:4,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:5,number:"119",title:"稲摺節",group:"着物組"},
+    {order:6,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:7,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:8,number:"250",title:"ふるさとの雨",group:"ひよこ組"},
+    {order:9,number:"126",title:"太陽ぬ子",group:"ひよこ組"},
+    {order:10,number:"089",title:"豊年のあやぐ",group:"ひよこ組"},
+    {order:11,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:12,number:"238",title:"ホップのとぅばらーま",group:"ひよこ組"},
+    {order:13,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-05-09", songs:[
+    {order:1,number:"058",title:"かぎやで風節",group:"着物組"},
+    {order:2,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:3,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:4,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:5,number:"119",title:"稲摺節",group:"着物組"},
+    {order:6,number:"046",title:"梅の香り",group:"着物組"},
+    {order:7,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:8,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
+    {order:9,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:10,number:"250",title:"ふるさとの雨",group:"ひよこ組"},
+    {order:11,number:"089",title:"豊年のあやぐ",group:"ひよこ組"},
+    {order:12,number:"245",title:"銭節",group:"ひよこ組"},
+    {order:13,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:14,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-04-25", songs:[
+    {order:1,number:"058",title:"かぎやで風節",group:"着物組"},
+    {order:2,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:3,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:4,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:5,number:"046",title:"梅の香り",group:"着物組"},
+    {order:6,number:"119",title:"稲摺節",group:"着物組"},
+    {order:7,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
+    {order:8,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:9,number:"089",title:"豊年のあやぐ",group:"ひよこ組"},
+    {order:10,number:"079",title:"ちんぬくじゅうしい",group:"ひよこ組"},
+    {order:11,number:"218",title:"ハリヨイ美童",group:"ひよこ組"},
+    {order:12,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:13,number:"092",title:"八重山育ち",group:"ひよこ組"},
+    {order:14,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+  { date:"2026-06-06", songs:[
+    {order:1,number:"049",title:"サイサイ節",group:"着物組"},
+    {order:2,number:"058",title:"かぎやで風節",group:"着物組"},
+    {order:3,number:"119",title:"稲摺節",group:"着物組"},
+    {order:4,number:"204",title:"加那ヨー",group:"着物組"},
+    {order:5,number:"249",title:"オートークガニー",group:"着物組"},
+    {order:6,number:"096",title:"伊江島渡し船",group:"着物組"},
+    {order:7,number:"011",title:"十九の春",group:"ひよこ組"},
+    {order:8,number:"079",title:"ちんぬくじゅうしい",group:"ひよこ組"},
+    {order:9,number:"092",title:"八重山育ち",group:"ひよこ組"},
+    {order:10,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
+    {order:11,number:"247",title:"世果報でーびる",group:"ひよこ組"},
+    {order:12,number:"044",title:"伊良部トーガニ",group:"ひよこ組"},
+    {order:13,number:"158",title:"とぅばらーま",group:"ひよこ組"},
+  ]},
+];
+
+// ── Google Apps Script API ───────────────────────────
+// 環境判別: GitHub Pagesならスプレッドシート連携、それ以外はハードコード
+const IS_PRODUCTION = typeof location !== "undefined" &&
+  location.hostname === "zephra0911.github.io";
+
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzE1OoXs3H47LbfW1X_Hu25wNNoqNrWzpl3di_WOx-2VQNmtObX-YF2XDDUSH2rm8h1/exec";
+
+async function gasGet(action) {
+  const res = await fetch(`${GAS_URL}?action=${action}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function gasPost(action, data) {
+  // Artifact環境では保存しない
+  if (!IS_PRODUCTION) return { success: true, skipped: true };
+  // GitHub Pages: GETパラメータ方式で保存（CORS対策）
+  const key = action === "saveDiary" ? "diary"
+    : action === "saveEvents" ? "events"
+    : action === "saveImport" ? "importResult" : null;
+  if (!key) throw new Error("unknown action");
+  const params = new URLSearchParams({
+    action: "saveAll",
+    [key]: encodeURIComponent(JSON.stringify(data)),
+  });
+  const res = await fetch(`${GAS_URL}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── カラーパレット ─────────────────────────────────────
+const C = {
+  bg:"#fdf6ec", paper:"#fffdf8", border:"#e8d5b0",
+  accent:"#c0392b", teal:"#1a6b5a", tealLight:"#e8f5f1",
+  text:"#2c1a0e", sub:"#7a6248", gold:"#b8860b",
+};
+
+// ── メインアプリ ───────────────────────────────────────
+function SanshinApp() {
+  const [tab, setTab] = useState("advice");
+  const [diary, setDiary] = useState([]);
+  const [events, setEvents] = useState(BASE_EVENTS);
+
+  // 日誌入力
+  const [lineText, setLineText] = useState("");
+  const [parseResults, setParseResults] = useState([]);
+  const [parseError, setParseError] = useState("");
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [dateModalDate, setDateModalDate] = useState("");
+  const [pendingResults, setPendingResults] = useState([]);
+
+  // 履歴
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState(null);
+  const [editingDiary, setEditingDiary] = useState(null);
+
+  // イベント
+  const [editingEvent, setEditingEvent] = useState(null);
+
+  // 練習指南
+  const [taruModal, setTaruModal] = useState(null);
+  const [exportText, setExportText] = useState("");
+  const [exportCopied, setExportCopied] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importResult, setImportResult] = useState(null);
+  const [importMsg, setImportMsg] = useState("");
+  const [textCopied, setTextCopied] = useState(false);
+  const [gasStatus, setGasStatus] = useState(""); // GAS連携ステータス
+  const [gasSyncing, setGasSyncing] = useState(false);
+
+  // ── 起動時自動読み込み ───────────────────────────────
+  const [gasLoading, setGasLoading] = useState(true);
+
+  useState(() => {
+    (async () => {
+      if (IS_PRODUCTION) {
+        // GitHub Pages: スプレッドシートから読み込む
+        try {
+          const [diaryData, eventsData, importData] = await Promise.all([
+            gasGet("getDiary"),
+            gasGet("getEvents"),
+            gasGet("getImport"),
+          ]);
+          if (Array.isArray(diaryData) && diaryData.length > 0) {
+            setDiary(diaryData);
+          } else {
+            // シートが空の場合はINITIAL_DIARYで初期化して保存
+            setDiary(INITIAL_DIARY);
+            gasPost("saveDiary", INITIAL_DIARY).catch(e => console.error("初期化保存エラー:", e));
+          }
+          if (Array.isArray(eventsData) && eventsData.length > 0) {
+            setEvents(eventsData);
+          } else {
+            // イベントも空なら初期データで保存
+            gasPost("saveEvents", BASE_EVENTS).catch(e => console.error("イベント初期化エラー:", e));
+          }
+          if (importData) setImportResult(importData);
+        } catch(e) {
+          console.error("GAS読み込みエラー:", e);
+          setDiary(INITIAL_DIARY);
+        }
+      } else {
+        // Artifact: ハードコードデータを使用
+        setDiary(INITIAL_DIARY);
+      }
+      setGasLoading(false);
+    })();
+  });
+
+  // ── GAS連携 ──────────────────────────────────────────
+  const handleLoadFromGAS = async () => {
+    setGasSyncing(true);
+    setGasStatus("");
+    try {
+      const [diaryData, eventsData, importData] = await Promise.all([
+        gasGet("getDiary"),
+        gasGet("getEvents"),
+        gasGet("getImport"),
+      ]);
+      if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); }
+      if (Array.isArray(eventsData) && eventsData.length > 0) { setEvents(eventsData); }
+      if (importData) { setImportResult(importData); }
+      setGasStatus(`✅ 読み込み完了（日誌${Array.isArray(diaryData)?diaryData.length:0}回）`);
+    } catch(e) {
+      setGasStatus(`❌ 読み込み失敗: ${e.message}`);
+    }
+    setGasSyncing(false);
+  };
+
+  const handleSaveToGAS = async () => {
+    setGasSyncing(true);
+    setGasStatus("");
+    try {
+      const result = await gasPost("saveDiary", diary);
+      if (result.success) {
+        setGasStatus(`✅ ${diary.length}回分を保存しました`);
+      } else {
+        setGasStatus(`❌ 保存失敗: ${result.error}`);
+      }
+    } catch(e) {
+      setGasStatus(`❌ 保存失敗: ${e.message}`);
+    }
+    setGasSyncing(false);
+  };
+
+  // ── 日誌解析 ──────────────────────────────────────────
+  const handleAnalyze = () => {
+    if (!lineText.trim()) return;
+    setParseError(""); setParseResults([]);
+    try {
+      const results = parseLineText(lineText);
+      if (results.some(r => !r.dateFound)) {
+        setDateModalDate(new Date().toISOString().slice(0,10));
+        setShowDateModal(true);
+        setPendingResults(results);
+        return;
+      }
+      setParseResults(results);
+    } catch(e) { setParseError(e.message); }
+  };
+
+  const handleDateConfirm = (date) => {
+    setParseResults(pendingResults.map(r => !r.dateFound ? {...r, date} : r));
+    setPendingResults([]); setShowDateModal(false);
+  };
+
+  const handleSaveDiary = () => {
+    if (!parseResults.length) return;
+    let next = [...diary];
+    for (const r of parseResults) {
+      const idx = next.findIndex(d => d.date === r.date);
+      if (idx >= 0) next[idx] = r; else next.push(r);
+    }
+    next = next.sort((a,b) => b.date.localeCompare(a.date));
+    setDiary(next);
+    setParseResults([]); setLineText(""); setTab("history");
+    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+  };
+
+  // ── 履歴編集・削除 ────────────────────────────────────
+  const handleDeleteDiary = (date) => {
+    const next = diary.filter(d => d.date !== date);
+    setDiary(next);
+    setSelectedEntry(null); setConfirmDeleteDate(null);
+    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+  };
+
+  const handleSaveDiaryEdit = () => {
+    if (!editingDiary) return;
+    const next = diary.map(d => d.date === editingDiary.date ? editingDiary : d);
+    setDiary(next);
+    setEditingDiary(null);
+    gasPost("saveDiary", next).catch(e => console.error("GAS保存エラー:", e));
+  };
+
+  const handleEditSongChange = (idx, field, value) => {
+    setEditingDiary(prev => ({
+      ...prev,
+      songs: prev.songs.map((s,i) => i === idx ? {...s, [field]: value} : s)
+    }));
+  };
+
+  const handleEditSongDelete = (idx) => {
+    setEditingDiary(prev => ({
+      ...prev,
+      songs: prev.songs.filter((_,i) => i !== idx).map((s,i) => ({...s, order:i+1}))
+    }));
+  };
+
+  const handleEditSongAdd = (group) => {
+    setEditingDiary(prev => ({
+      ...prev,
+      songs: [...prev.songs, {order:prev.songs.length+1, number:"", title:"", group}]
+    }));
+  };
+
+  // ── エクスポート ──────────────────────────────────────
+  const handleExport = () => {
+    const stats = {};
+    diary.forEach(d => d.songs?.forEach(s => {
+      if (!stats[s.number]) stats[s.number] = {title:s.title, count:0, group:s.group};
+      stats[s.number].count++;
+    }));
+    const lines = [
+      "以下は結の会スージー三線教室のお稽古記録です。",
+      "①着物組・ひよこ組それぞれについて、同じ分量で練習アドバイスをしてください。",
+      "②着物組・ひよこ組それぞれの最近の練習傾向を分析してください。",
+      "③イベントに向けて優先すべき曲をアドバイスしてください。",
+      "結果のJSONはadvice・analysisを着物組・ひよこ組のキーで分けてください。",
+      "",
+      `【記録回数】${diary.length}回`,
+      "",
+      "【曲別練習回数】",
+      ...Object.entries(stats).sort((a,b)=>b[1].count-a[1].count)
+        .map(([num,info]) => `  ${num} ${info.title}（${info.group}）: ${info.count}回`),
+      "",
+      "【直近4回のお稽古】",
+      ...diary.slice(0,4).flatMap(d => [
+        `  ${d.date}`,
+        ...d.songs.map(s => `    ${s.number} ${s.title}（${s.group}）`),
+      ]),
+    ];
+    setExportText(lines.join("\n"));
+  };
+
+  const handleCopyExport = () => {
+    navigator.clipboard?.writeText(exportText);
+    setExportCopied(true);
+    setTimeout(() => setExportCopied(false), 2000);
+  };
+
+  // ── インポート ────────────────────────────────────────
+  const handleImport = () => {
+    setImportMsg(""); setImportResult(null);
+    try {
+      const match = importText.match(/\{[\s\S]*\}/);
+      if (match) {
+        const data = JSON.parse(match[0]);
+        if (data.advice || data.recommendations || data.analysis) {
+          setImportResult(data);
+        gasPost("saveImport", data).catch(e => console.error("GAS保存エラー:", e));
+        return;
+        }
+      }
+      throw new Error("対応するデータ形式が見つかりません");
+    } catch(e) { setImportMsg(`❌ ${e.message}`); }
+  };
+
+  // ── 集計 ──────────────────────────────────────────────
+  const songStats = {};
+  diary.forEach(d => d.songs?.forEach(s => {
+    if (!songStats[s.number]) songStats[s.number] = {title:s.title, count:0};
+    songStats[s.number].count++;
+  }));
+
+  const latestSession = diary[0];
+  const recKimono = latestSession ? latestSession.songs.filter(s => s.group==="着物組") : [];
+  const recHiyoko = latestSession ? latestSession.songs.filter(s => s.group==="ひよこ組") : [];
+  // 練習回数3回以下をNEW扱い
+  const newNums = new Set(
+    [...recKimono,...recHiyoko]
+      .filter(s => (songStats[s.number]?.count || 0) <= 3)
+      .map(s => s.number)
+  );
+
+  const today = new Date().toISOString().slice(0,10);
+  const nextEvent = events.filter(e=>e.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];
+
+  return (
+    <div id="app-scroll" style={{...S.app,overflowY:"auto",height:"100vh"}}>
+      {gasLoading && (
+        <div style={{position:"fixed",inset:0,background:"rgba(255,255,255,0.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:999}}>
+          <div style={{fontSize:32,marginBottom:12}}>三</div>
+          <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>読み込み中...</div>
+        </div>
+      )}
+      {/* ヘッダー */}
+      <header style={S.header}>
+        <div style={S.headerInner}>
+          <div style={S.logo}>
+            <span style={S.logoMark}>ス</span>
+            <div>
+              <div style={S.logoTitle}>結の会スージー三線教室</div>
+              <div style={S.logoSub}>お稽古管理アプリ</div>
+            </div>
+          </div>
+          {nextEvent && (
+            <div style={S.eventBadge}>
+              <span style={S.eventBadgeTitle}>{nextEvent.date}</span>
+              <span style={S.eventBadgeSub}>{nextEvent.title}</span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ナビ */}
+      <nav style={S.nav}>
+        {[["advice","🎵 練習指南"],["ai","🤖 AI分析"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)}
+            style={{...S.tab,...(tab===id?S.tabActive:{})}}>
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <main style={S.main}>
+
+        {/* ── 日誌入力 ── */}
+        {tab==="diary" && (
+          <div style={S.section}>
+            <h2 style={S.sectionTitle}>お稽古日誌 入力</h2>
+            <p style={S.hint}>LINEのトーク内容をそのまま貼り付けてください。複数回分まとめてOKです。</p>
+            <textarea style={S.textarea}
+              placeholder={"例）\n2026/06/01のお稽古曲です\n第一部\n249 オートークガニー\n第二部\n2 てぃんさぐぬ花"}
+              value={lineText} onChange={e=>setLineText(e.target.value)} />
+            <div style={{display:"flex",gap:8}}>
+              <button style={{...S.btn,...S.btnPrimary,flex:1}} onClick={handleAnalyze}>📋 解析する</button>
+              {lineText.trim() && (
+                <button style={{...S.btn,background:textCopied?C.teal:"#e8f5f1",color:textCopied?"#fff":C.teal,border:`1px solid ${C.teal}`,transition:"all 0.2s"}}
+                  onClick={()=>{navigator.clipboard?.writeText(lineText);setTextCopied(true);setTimeout(()=>setTextCopied(false),2000)}}>
+                  {textCopied?"✅":"📤 コピー"}
+                </button>
+              )}
+              {lineText.trim() && (
+                <button style={{...S.btn,background:"transparent",color:C.sub,border:`1px solid ${C.border}`}}
+                  onClick={()=>{setLineText("");setParseResults([]);setParseError("");}}>
+                  ✕ クリア
+                </button>
+              )}
+            </div>
+            {parseError && <div style={S.error}>⚠️ {parseError}</div>}
+            {parseResults.length>0 && (
+              <div style={S.section}>
+                {parseResults.length>1 && <div style={S.multiNotice}>📋 {parseResults.length}回分を検出</div>}
+                {parseResults.map(result=>(
+                  <div key={result.date} style={S.resultCard}>
+                    <div style={S.resultDate}>📅 {result.date}</div>
+                    {["着物組","ひよこ組"].map(grp=>{
+                      const gs=result.songs.filter(s=>s.group===grp);
+                      if(!gs.length) return null;
+                      return (
+                        <div key={grp} style={S.groupSection}>
+                          <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
+                          {gs.map(s=><SongRow key={s.order} song={s}/>)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...S.btn,...S.btnSuccess}} onClick={handleSaveDiary}>
+                    ✅ {parseResults.length>1?`${parseResults.length}回分まとめて保存`:"保存する"}
+                  </button>
+                  <button style={{...S.btn,...S.btnGhost}} onClick={()=>setParseResults([])}>やり直す</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 履歴 ── */}
+        {tab==="history" && (
+          <div style={S.section}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0}}>お稽古履歴</h2>
+            </div>
+            <div style={{borderBottom:`1px solid ${C.border}`,marginBottom:4}}/>
+            {diary.length===0
+              ? <div style={S.empty}>まだ記録がありません。</div>
+              : diary.map(entry=>(
+                <div key={entry.date} style={S.historyCard}
+                  onClick={()=>setSelectedEntry(selectedEntry?.date===entry.date?null:entry)}>
+                  <div style={S.historyHeader}>
+                    <span style={S.historyDate}>📅 {entry.date}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={S.historySongCount}>{entry.songs?.length}曲</span>
+                      <button style={{fontSize:11,padding:"2px 8px",borderRadius:6,border:`1px solid ${C.teal}`,background:"transparent",color:C.teal,cursor:"pointer"}}
+                        onClick={e=>{e.stopPropagation();setEditingDiary(JSON.parse(JSON.stringify(entry)))}}>✏️</button>
+                      <button style={{fontSize:11,padding:"2px 8px",borderRadius:6,border:`1px solid ${C.accent}`,background:"transparent",color:C.accent,cursor:"pointer"}}
+                        onClick={e=>{e.stopPropagation();setConfirmDeleteDate(entry.date)}}>🗑️</button>
+                    </div>
+                  </div>
+                  {selectedEntry?.date===entry.date && (
+                    <div style={S.historyDetail}>
+                      {["着物組","ひよこ組"].map(grp=>{
+                        const gs=entry.songs.filter(s=>s.group===grp);
+                        if(!gs.length) return null;
+                        return (
+                          <div key={grp} style={S.groupSection}>
+                            <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
+                            {gs.map(s=><SongRow key={s.order} song={s}/>)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))
+            }
+          </div>
+        )}
+
+        {/* ── イベント ── */}
+        {tab==="events" && (
+          <div style={S.section}>
+            <h2 style={S.sectionTitle}>年間イベント</h2>
+            {events.map(ev=>{
+              const past = ev.date < today;
+              return (
+                <div key={ev.id}>
+                  {editingEvent?.id===ev.id ? (
+                    <div style={{...S.eventCard,flexDirection:"column",gap:10,alignItems:"stretch"}}>
+                      <div style={{fontWeight:"bold",color:C.teal}}>✏️ {ev.title} を編集</div>
+                      <input type="text" style={S.dateInput} placeholder="イベント名"
+                        value={editingEvent.title}
+                        onChange={e=>setEditingEvent({...editingEvent,title:e.target.value})}/>
+                      <input type="date" style={S.dateInput}
+                        value={editingEvent.date}
+                        onChange={e=>setEditingEvent({...editingEvent,date:e.target.value})}/>
+                    <input type="text" style={S.dateInput} placeholder="時間（例: 14:00〜16:00）"
+                        value={editingEvent.time||""}
+                        onChange={e=>setEditingEvent({...editingEvent,time:e.target.value})}/>
+                    <input type="text" style={S.dateInput} placeholder="場所"
+                        value={editingEvent.place||""}
+                        onChange={e=>setEditingEvent({...editingEvent,place:e.target.value})}/>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={{...S.btn,flex:1,background:editingEvent.confirmed?C.teal:C.border,color:editingEvent.confirmed?"#fff":C.text}}
+                          onClick={()=>setEditingEvent({...editingEvent,confirmed:true})}>✅ 確定</button>
+                        <button style={{...S.btn,flex:1,background:!editingEvent.confirmed?"#f39c12":C.border,color:!editingEvent.confirmed?"#fff":C.text}}
+                          onClick={()=>setEditingEvent({...editingEvent,confirmed:false})}>🔸 仮</button>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={{...S.btn,...S.btnSuccess,flex:1}} onClick={()=>{
+                          const nextEv = events.map(e=>e.id===editingEvent.id?{...e,...editingEvent}:e).sort((a,b)=>a.date.localeCompare(b.date));
+                          setEvents(nextEv);
+                          setEditingEvent(null);
+                          gasPost("saveEvents", nextEv).catch(e => console.error("GAS保存エラー:", e));
+                        }}>✅ 保存</button>
+                        <button style={{...S.btn,...S.btnGhost}} onClick={()=>setEditingEvent(null)}>キャンセル</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{...S.eventCard,opacity:past?0.5:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+                        <div style={{fontSize:15,color:C.sub,whiteSpace:"nowrap"}}>{ev.date}</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:2,flex:1}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{fontSize:16,fontWeight:"bold"}}>{ev.title}</div>
+                            {!ev.confirmed && <span style={S.tentativeBadge}>仮</span>}
+                            {past && <span style={{fontSize:11,color:C.sub}}>終了</span>}
+                          </div>
+                          {(ev.time||ev.place) && (
+                            <div style={{fontSize:12,color:C.sub}}>
+                              {ev.time && <span>🕐 {ev.time}　</span>}
+                              {ev.place && <span>📍 {ev.place}</span>}
+                            </div>
+                          )}
+                        </div>
+                        <button style={{...S.taruBtn,marginLeft:"auto",flexShrink:0}} onClick={()=>setEditingEvent({...ev})}>✏️ 編集</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── 練習指南 ── */}
+        {tab==="advice" && (
+          <div style={S.section}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
+              <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>練習指南</h2>
+              <div style={{display:"flex",gap:6}}>
+                <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
+                  style={{background:C.teal,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  📄 工工四
+                </a>
+                <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
+                  style={{background:C.gold,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  🎵 音源
+                </a>
+                <a href="https://zoom.us/j/2950376039" target="_blank" rel="noreferrer"
+                  style={{background:"#2D8CFF",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  🎥 ZOOM
+                </a>
+              </div>
+            </div>
+
+            {diary.length===0
+              ? <div style={S.empty}>お稽古履歴がありません。</div>
+              : <>
+
+
+                {/* 次週練習候補 */}
+                <div style={S.adviceCard}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <div style={S.adviceHeader}>🔁 次回練習候補</div>
+                    <button style={{...S.taruBtn,background:textCopied?C.teal:"transparent",color:textCopied?"#fff":C.teal,border:`1px solid ${C.teal}`,transition:"all 0.2s"}}
+                      onClick={()=>{
+                        const tmpl=generateTemplate(latestSession);
+                        setLineText(tmpl);
+                        navigator.clipboard?.writeText(tmpl);
+                        setTextCopied(true);
+                        setTimeout(()=>setTextCopied(false),2000);
+                        setTab("diary");
+                      }}>
+                      {textCopied?"✅ コピー済":"📋 日誌に使う"}
+                    </button>
+                  </div>
+                  {latestSession && <div style={{fontSize:11,color:C.sub,marginBottom:6}}>📅 {latestSession.date}</div>}
+                  <div style={S.groupLabel}>🪸 着物組</div>
+                  {recKimono.length===0
+                    ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
+                    : recKimono.map(s=>(
+                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
+                        <span style={S.songOrder}>#{s.order}</span>
+                        <span style={S.songNum}>{s.number}</span>
+                        <span style={S.songTitle}>{s.title}</span>
+                        {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                      </div>
+                    ))
+                  }
+                  <div style={{...S.groupLabel,marginTop:8}}>🐣 ひよこ組</div>
+                  {recHiyoko.length===0
+                    ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
+                    : recHiyoko.map(s=>(
+                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
+                        <span style={S.songOrder}>#{s.order}</span>
+                        <span style={S.songNum}>{s.number}</span>
+                        <span style={S.songTitle}>{s.title}</span>
+                        {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                      </div>
+                    ))
+                  }
+                </div>
+
+                {/* 全曲練習回数 */}
+                <div style={S.adviceCard}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={S.adviceHeader}>📊 全曲練習回数</div>
+                    <span style={{fontSize:11,color:C.sub}}>{diary.length}回記録</span>
+                    <span style={{fontSize:11,color:C.sub}}>／</span>
+                    <span style={{fontSize:11,color:C.sub}}>{Object.keys(songStats).length}曲</span>
+                  </div>
+                  {Object.entries(songStats).sort((a,b)=>b[1].count-a[1].count).map(([num,info])=>{
+                    const m=getMastery(info.count);
+                    return (
+                      <div key={num} style={{...S.statRow,flexWrap:"wrap",gap:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
+                          <span style={S.songNum}>{num}</span>
+                          <span style={S.songTitle}>{info.title}</span>
+                          <span style={S.statCount}>{info.count}回</span>
+                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>たるー</button>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
+                          <div style={S.barWrap}><div style={{...S.bar,width:`${Math.min(100,info.count*10)}%`}}/></div>
+                          <span style={{fontSize:11,fontWeight:"bold",padding:"2px 8px",borderRadius:10,color:m.color,background:m.bg,whiteSpace:"nowrap"}}>{m.stage}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+
+
+
+              </>
+            }
+          </div>
+        )}
+        {/* ── AI分析 ── */}
+        {tab==="ai" && (
+          <div style={S.section}>
+            <h2 style={S.sectionTitle}>🤖 AI分析</h2>
+
+            {/* スプレッドシート連携 */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>📊 スプレッドシート連携</div>
+              <div style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:IS_PRODUCTION?C.tealLight:"#fff8e1",color:IS_PRODUCTION?C.teal:"#7a6000",display:"inline-block"}}>
+                {IS_PRODUCTION ? "🌐 本番モード（スプレッドシート連携中）" : "🧪 テストモード（ハードコードデータ使用中）"}
+              </div>
+              <p style={{...S.hint,margin:0}}>Googleスプレッドシートとデータを同期します。</p>
+              <div style={{display:"flex",gap:8}}>
+                <button style={{...S.btn,background:C.teal,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
+                  onClick={handleLoadFromGAS} disabled={gasSyncing}>
+                  {gasSyncing?"⏳ 処理中...":"📥 シートから読込"}
+                </button>
+                <button style={{...S.btn,background:C.gold,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
+                  onClick={handleSaveToGAS} disabled={gasSyncing}>
+                  {gasSyncing?"⏳ 処理中...":"📤 シートへ保存"}
+                </button>
+              </div>
+              {gasStatus && (
+                <div style={{fontSize:13,color:gasStatus.startsWith("✅")?C.teal:gasStatus.startsWith("⚠️")?"#f39c12":C.accent}}>
+                  {gasStatus}
+                </div>
+              )}
+            </div>
+
+            {/* アドバイス */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>💬 アドバイス</div>
+              {importResult?.advice
+                ? typeof importResult.advice === "object"
+                  ? <>
+                      {importResult.advice["着物組"] && (
+                        <div style={{marginBottom:8}}>
+                          <div style={S.groupLabel}>🪸 着物組</div>
+                          <div style={{...S.importText,marginTop:6}}>{importResult.advice["着物組"]}</div>
+                        </div>
+                      )}
+                      {importResult.advice["ひよこ組"] && (
+                        <div>
+                          <div style={S.groupLabel}>🐣 ひよこ組</div>
+                          <div style={{...S.importText,marginTop:6}}>{importResult.advice["ひよこ組"]}</div>
+                        </div>
+                      )}
+                    </>
+                  : <div style={S.importText}>{importResult.advice}</div>
+                : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
+              }
+            </div>
+
+            {/* 傾向分析 */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>📊 傾向分析</div>
+              {importResult?.analysis
+                ? typeof importResult.analysis === "object"
+                  ? <>
+                      {importResult.analysis["着物組"] && (
+                        <div style={{marginBottom:8}}>
+                          <div style={S.groupLabel}>🪸 着物組</div>
+                          <div style={{...S.importText,marginTop:6}}>{importResult.analysis["着物組"]}</div>
+                        </div>
+                      )}
+                      {importResult.analysis["ひよこ組"] && (
+                        <div>
+                          <div style={S.groupLabel}>🐣 ひよこ組</div>
+                          <div style={{...S.importText,marginTop:6}}>{importResult.analysis["ひよこ組"]}</div>
+                        </div>
+                      )}
+                    </>
+                  : <div style={S.importText}>{importResult.analysis}</div>
+                : <div style={{fontSize:12,color:C.sub}}>解析結果をインポートすると表示されます。</div>
+              }
+            </div>
+
+            {/* エクスポート */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>📤 Claude.aiで解析する</div>
+              <p style={{...S.hint,margin:0}}>蓄積データをエクスポートしてClaude.aiに貼り付けると練習アドバイスを取得できます。</p>
+              <button style={{...S.btn,...S.btnPrimary}} onClick={handleExport}>📋 解析用テキストを生成</button>
+              {exportText && (
+                <>
+                  <textarea readOnly style={{...S.textarea,minHeight:180,fontSize:11,background:"#f8f8f8"}} value={exportText}/>
+                  <button style={{...S.btn,background:exportCopied?"#27ae60":C.teal,color:"#fff"}} onClick={handleCopyExport}>
+                    {exportCopied?"✅ コピーしました！":"📋 全文コピー"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* インポート */}
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>📥 解析結果をインポート</div>
+              <p style={{...S.hint,margin:0}}>Claude.aiの分析結果JSONを貼り付けてください。</p>
+              <textarea style={{...S.textarea,minHeight:100}} placeholder='{"advice":"...","analysis":"..."}'
+                value={importText} onChange={e=>setImportText(e.target.value)}/>
+              <button style={{...S.btn,...S.btnPrimary}} onClick={handleImport}>📥 読み込む</button>
+              {importMsg && <div style={{fontSize:13,color:importMsg.startsWith("✅")?C.teal:C.accent}}>{importMsg}</div>}
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* ── 日付入力モーダル ── */}
+      {showDateModal && (
+        <div style={S.modalOverlay}>
+          <div style={S.modalBox}>
+            <div style={S.modalTitle}>📅 日付を入力してください</div>
+            <p style={S.hint}>テキストから日付を読み取れませんでした。</p>
+            <input type="date" style={S.dateInput} value={dateModalDate} onChange={e=>setDateModalDate(e.target.value)}/>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button style={{...S.btn,...S.btnSuccess,flex:1}} onClick={()=>handleDateConfirm(dateModalDate)} disabled={!dateModalDate}>✅ この日付で解析</button>
+              <button style={{...S.btn,...S.btnGhost}} onClick={()=>{setShowDateModal(false);setPendingResults([])}}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 削除確認モーダル ── */}
+      {confirmDeleteDate && (
+        <div style={S.modalOverlay} onClick={()=>setConfirmDeleteDate(null)}>
+          <div style={S.modalBox} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>🗑️ 削除の確認</div>
+            <p style={{fontSize:14,color:C.text,margin:0}}><strong>{confirmDeleteDate}</strong> の記録を削除しますか？</p>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button style={{...S.btn,background:C.accent,color:"#fff",flex:1}} onClick={()=>handleDeleteDiary(confirmDeleteDate)}>🗑️ 削除する</button>
+              <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>setConfirmDeleteDate(null)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 日誌編集モーダル ── */}
+      {editingDiary && (
+        <div style={S.modalOverlay} onClick={()=>setEditingDiary(null)}>
+          <div style={{...S.modalBox,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>✏️ {editingDiary.date} を編集</div>
+            {["着物組","ひよこ組"].map(grp=>(
+              <div key={grp} style={{marginTop:12}}>
+                <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
+                {editingDiary.songs.filter(s=>s.group===grp).map(s=>{
+                  const gi=editingDiary.songs.indexOf(s);
+                  return (
+                    <div key={gi} style={{display:"flex",gap:6,alignItems:"center",marginTop:6}}>
+                      <input style={{...S.dateInput,width:52,padding:"6px 8px",fontSize:12}} placeholder="番号"
+                        value={s.number}
+                        onChange={e=>{
+                          const num=String(e.target.value).padStart(3,"0");
+                          handleEditSongChange(gi,"number",e.target.value);
+                          if(SONG_DB[num]) handleEditSongChange(gi,"title",SONG_DB[num].title);
+                        }}/>
+                      <input style={{...S.dateInput,flex:1,padding:"6px 8px",fontSize:12}} placeholder="曲名"
+                        value={s.title} onChange={e=>handleEditSongChange(gi,"title",e.target.value)}/>
+                      <button style={{fontSize:12,padding:"4px 8px",borderRadius:6,border:`1px solid ${C.accent}`,background:"transparent",color:C.accent,cursor:"pointer"}}
+                        onClick={()=>handleEditSongDelete(gi)}>🗑️</button>
+                    </div>
+                  );
+                })}
+                <button style={{...S.taruBtn,marginTop:8,color:C.teal,border:`1px solid ${C.teal}`}}
+                  onClick={()=>handleEditSongAdd(grp)}>＋ 曲を追加</button>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:16}}>
+              <button style={{...S.btn,...S.btnSuccess,flex:1}} onClick={handleSaveDiaryEdit}>✅ 保存</button>
+              <button style={{...S.btn,...S.btnGhost}} onClick={()=>setEditingDiary(null)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── たるーモーダル ── */}
+      {taruModal && (
+        <div style={S.modalOverlay} onClick={()=>setTaruModal(null)}>
+          <div style={S.modalBox} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>🎵 {taruModal.title}</div>
+            <p style={{fontSize:12,color:C.sub,margin:"0 0 12px"}}>「たるーの島唄まじめな研究」で解説を検索します。</p>
+            <a href={taruGoogleUrl(taruModal.title)} target="_blank" rel="noreferrer"
+              style={{...S.btn,...S.btnPrimary,textDecoration:"none",textAlign:"center",display:"block"}}>
+              🔍 Google で検索する
+            </a>
+            <button style={{...S.btn,...S.btnGhost,marginTop:8,width:"100%"}} onClick={()=>setTaruModal(null)}>閉じる</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SongRow({song}) {
+  return (
+    <div style={{...S.songRow}}>
+      <span style={S.songOrder}>#{song.order}</span>
+      <span style={S.songNum}>{song.number}</span>
+      <span style={S.songTitle}>{song.title}</span>
+    </div>
+  );
+}
+
+function typeColor(type) {
+  return {"発表会":"#c0392b","演奏会":"#16a085","外部演奏":"#8e44ad","表彰式":"#d4830a"}[type]||"#7f8c8d";
+}
+
+const S = {
+  app:{fontFamily:"'Hiragino Mincho ProN','Yu Mincho','Georgia',serif",background:C.bg,minHeight:"100vh",color:C.text,maxWidth:480,margin:"0 auto",boxShadow:"0 0 40px rgba(0,0,0,0.12)"},
+  header:{background:`linear-gradient(135deg,${C.teal} 0%,#0d4a3a 100%)`,padding:"16px",position:"sticky",top:0,zIndex:100},
+  headerInner:{display:"flex",justifyContent:"space-between",alignItems:"center"},
+  logo:{display:"flex",alignItems:"center",gap:10},
+  logoMark:{fontSize:32,color:"#f0c040",fontWeight:"bold",lineHeight:1,fontFamily:"'Hiragino Sans','Yu Gothic','Meiryo',sans-serif"},
+  logoTitle:{color:"#fff",fontSize:16,fontWeight:"bold",letterSpacing:"0.05em"},
+  logoSub:{color:"rgba(255,255,255,0.7)",fontSize:11},
+  eventBadge:{background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px",textAlign:"right"},
+  eventBadgeTitle:{display:"block",color:"#f0c040",fontSize:12,fontWeight:"bold"},
+  eventBadgeSub:{display:"block",color:"rgba(255,255,255,0.9)",fontSize:10},
+  nav:{display:"flex",background:C.paper,borderBottom:`2px solid ${C.border}`},
+  tab:{flex:1,padding:"12px 4px",border:"none",background:"transparent",color:C.sub,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"},
+  tabActive:{color:C.teal,borderBottom:`3px solid ${C.teal}`,fontWeight:"bold",background:C.tealLight},
+  main:{padding:"16px"},
+  section:{display:"flex",flexDirection:"column",gap:12},
+  sectionTitle:{fontSize:18,fontWeight:"bold",color:C.teal,margin:0,paddingBottom:8,borderBottom:`1px solid ${C.border}`},
+  hint:{fontSize:12,color:C.sub,margin:0,lineHeight:1.6},
+  textarea:{width:"100%",minHeight:160,padding:12,border:`1px solid ${C.border}`,borderRadius:8,background:C.paper,fontSize:13,color:C.text,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",lineHeight:1.6},
+  btn:{padding:"12px 20px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:"bold",fontFamily:"inherit"},
+  btnPrimary:{background:C.teal,color:"#fff"},
+  btnSuccess:{background:"#27ae60",color:"#fff"},
+  btnGhost:{background:C.border,color:C.text},
+  error:{background:"#fdecea",border:`1px solid ${C.accent}`,color:C.accent,padding:12,borderRadius:8,fontSize:13},
+  multiNotice:{background:"#fff8e1",border:"1px solid #f0c040",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#7a6000"},
+  resultCard:{background:C.paper,border:`1px solid ${C.border}`,borderRadius:12,padding:16,display:"flex",flexDirection:"column",gap:12},
+  resultDate:{fontWeight:"bold",color:C.teal,fontSize:15},
+  groupSection:{display:"flex",flexDirection:"column",gap:6},
+  groupLabel:{fontSize:12,fontWeight:"bold",color:C.sub,background:C.tealLight,padding:"4px 10px",borderRadius:4,display:"inline-block"},
+  songRow:{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:"#faf7f2",borderRadius:6,borderLeft:`3px solid ${C.gold}`},
+  songOrder:{fontSize:11,color:C.sub,minWidth:24},
+  songNum:{fontSize:11,background:C.border,padding:"2px 6px",borderRadius:4,color:C.sub,minWidth:32,textAlign:"center"},
+  songTitle:{fontSize:14,flex:1,fontWeight:"500"},
+  newBadge:{fontSize:10,fontWeight:"bold",color:"#fff",background:C.accent,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap"},
+  historyCard:{background:C.paper,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",cursor:"pointer"},
+  historyHeader:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px"},
+  historyDate:{fontWeight:"bold",color:C.teal},
+  historySongCount:{fontSize:12,background:C.tealLight,color:C.teal,padding:"2px 8px",borderRadius:10},
+  historyDetail:{padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:12},
+  eventCard:{background:C.paper,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center"},
+  tentativeBadge:{fontSize:10,background:"#f39c12",color:"#fff",padding:"2px 6px",borderRadius:4},
+  summaryGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10},
+  summaryCard:{background:C.paper,border:`1px solid ${C.border}`,borderRadius:10,padding:16,textAlign:"center"},
+  summaryNum:{fontSize:28,fontWeight:"bold",color:C.teal},
+  summaryLabel:{fontSize:11,color:C.sub,marginTop:2},
+  adviceCard:{background:C.paper,border:`1px solid ${C.border}`,borderRadius:12,padding:16,display:"flex",flexDirection:"column",gap:8},
+  adviceHeader:{fontWeight:"bold",color:C.teal,fontSize:14},
+  statRow:{display:"flex",alignItems:"center",gap:8,padding:"4px 0"},
+  barWrap:{flex:1,background:"#eee",borderRadius:4,height:8,overflow:"hidden"},
+  bar:{height:"100%",background:C.teal,borderRadius:4},
+  statCount:{fontSize:12,color:C.sub,minWidth:28,textAlign:"right"},
+  taruBtn:{fontSize:10,padding:"2px 7px",borderRadius:10,border:`1px solid ${C.teal}`,background:"transparent",color:C.teal,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"},
+  importSection:{background:"#faf7f2",borderRadius:8,padding:12,display:"flex",flexDirection:"column",gap:6},
+  importLabel:{fontWeight:"bold",color:C.teal,fontSize:13},
+  importText:{fontSize:14,lineHeight:1.8,color:C.text,whiteSpace:"pre-wrap"},
+  modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:24},
+  modalBox:{background:C.paper,borderRadius:16,padding:24,width:"100%",maxWidth:400,display:"flex",flexDirection:"column",gap:12,boxShadow:"0 8px 32px rgba(0,0,0,0.2)"},
+  modalTitle:{fontSize:16,fontWeight:"bold",color:C.teal},
+  dateInput:{width:"100%",padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:16,boxSizing:"border-box",fontFamily:"inherit",color:C.text,background:C.paper},
+  empty:{textAlign:"center",color:C.sub,padding:40,fontSize:14,lineHeight:1.8,background:C.paper,borderRadius:12,border:`1px dashed ${C.border}`},
+};
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SanshinApp />);
+  </script>
+</body>
+</html>
