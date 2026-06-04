@@ -592,6 +592,11 @@ function gasVoteSongs(nums) {
   return fetch(GAS_URL + "?action=voteSongs&nums=" + encodeURIComponent(JSON.stringify(nums)));
 }
 
+function gasLoginCountUp(name) {
+  if (!IS_PRODUCTION) return Promise.resolve();
+  return fetch(GAS_URL + "?action=loginCountUp&name=" + encodeURIComponent(name));
+}
+
 function gasPost(action, data) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
   var key = action === "saveDiary" ? "diary"
@@ -710,6 +715,7 @@ function SanshinApp() {
   const handleLoginQuiz = () => {
     if (selectedSongs.length !== 2) { setLoginError("2曲選んでください"); return; }
     gasVoteSongs(selectedSongs).catch(e => console.error("投票エラー:", e));
+    gasLoginCountUp(loginName).catch(e => console.error("カウントエラー:", e));
     setLoginStep("done");
   };
 
@@ -1085,7 +1091,7 @@ function SanshinApp() {
                 </div>
                 {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
                 <div style={{display:"flex",gap:8}}>
-                  <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>setLoginStep("done")}>
+                  <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>{gasLoginCountUp(loginName);setLoginStep("done");}}>
                     SKIP
                   </button>
                   <button style={{...S.btn,...S.btnPrimary,flex:1,opacity:selectedSongs.length===2?1:0.5}} onClick={handleLoginQuiz}>
