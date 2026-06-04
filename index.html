@@ -577,9 +577,8 @@ async function gasUpdateSession(session) {
 
 function gasCheckUser(name) {
   if (!IS_PRODUCTION) return Promise.resolve({ exists: true });
-  return fetch(GAS_URL + "?action=checkUser&name=" + encodeURIComponent(name))
-    .then(function(r){ return r.json(); })
-    .catch(function(){ return { exists: false }; });
+  return gasGet("checkUser&name=" + encodeURIComponent(name))
+    .catch(function(e){ console.error("checkUser error:", e); return { exists: false }; });
 }
 
 function gasRegisterUser(name) {
@@ -1407,7 +1406,9 @@ function SanshinApp() {
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
                           <div style={S.barWrap}><div style={{...S.bar,width:`${Math.round(info.count / maxSongCount * 100)}%`}}/></div>
-                          <span style={{fontSize:11,fontWeight:"bold",padding:"2px 8px",borderRadius:10,color:m.color,background:m.bg,whiteSpace:"nowrap"}}>{m.stage}</span>
+                          <span style={{fontSize:13,whiteSpace:"nowrap",letterSpacing:1}}>
+                            {"★".repeat(Math.min(5, Math.floor(info.count / 10)))}{"☆".repeat(Math.max(0, 5 - Math.min(5, Math.floor(info.count / 10))))}
+                          </span>
                         </div>
                       </div>
                     );
