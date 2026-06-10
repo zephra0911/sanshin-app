@@ -451,7 +451,7 @@ const INITIAL_DIARY = [
     {order:2,number:"119",title:"稲摺節",group:"着物組"},
     {order:3,number:"096",title:"伊江島渡し船",group:"着物組"},
     {order:4,number:"251",title:"片思い",group:"着物組"},
-    {order:5,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:5,number:"248",title:"国頭大福",group:"着物組"},
     {order:6,number:"204",title:"加那ヨー",group:"着物組"},
     {order:7,number:"002",title:"てぃんさぐぬ花",group:"ひよこ組"},
     {order:8,number:"121",title:"沖縄（うちなー）",group:"ひよこ組"},
@@ -479,7 +479,7 @@ const INITIAL_DIARY = [
   { date:"2026-05-09", songs:[
     {order:1,number:"058",title:"かぎやで風節",group:"着物組"},
     {order:2,number:"204",title:"加那ヨー",group:"着物組"},
-    {order:3,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:3,number:"248",title:"国頭大福",group:"着物組"},
     {order:4,number:"249",title:"オートークガニー",group:"着物組"},
     {order:5,number:"119",title:"稲摺節",group:"着物組"},
     {order:6,number:"046",title:"梅の香り",group:"着物組"},
@@ -495,7 +495,7 @@ const INITIAL_DIARY = [
   { date:"2026-04-25", songs:[
     {order:1,number:"058",title:"かぎやで風節",group:"着物組"},
     {order:2,number:"204",title:"加那ヨー",group:"着物組"},
-    {order:3,number:"258",title:"国頭大福(?)",group:"着物組"},
+    {order:3,number:"248",title:"国頭大福",group:"着物組"},
     {order:4,number:"249",title:"オートークガニー",group:"着物組"},
     {order:5,number:"046",title:"梅の香り",group:"着物組"},
     {order:6,number:"119",title:"稲摺節",group:"着物組"},
@@ -666,6 +666,9 @@ function SanshinApp() {
 
   // 練習指南
   const [taruModal, setTaruModal] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchRange, setSearchRange] = useState(null);
+  const [searchMode, setSearchMode] = useState("vote"); // vote | range | query
   const [exportText, setExportText] = useState("");
   const [exportCopied, setExportCopied] = useState(false);
   const [importText, setImportText] = useState("");
@@ -1008,9 +1011,10 @@ function SanshinApp() {
   // ── 集計 ──────────────────────────────────────────────
   const songStats = {};
   diary.forEach(d => d.songs?.forEach(s => {
-    if (!songStats[s.number]) songStats[s.number] = {title:s.title, count:0, lastDate:""};
+    if (!songStats[s.number]) songStats[s.number] = {title:s.title, count:0, lastDate:"", firstDate:""};
     songStats[s.number].count++;
     if (!songStats[s.number].lastDate) songStats[s.number].lastDate = d.date;
+    songStats[s.number].firstDate = d.date; // 降順ソート済みなので最後に出た日付が最古
   }));
 
   const maxSongCount = Object.values(songStats).reduce((m, s) => Math.max(m, s.count), 1);
@@ -1042,6 +1046,26 @@ function SanshinApp() {
           <div style={{fontSize:40,color:"#f0c040",marginBottom:8,fontFamily:"'Hiragino Sans','Yu Gothic',sans-serif",fontWeight:"bold"}}>ス</div>
           <div style={{color:"#fff",fontSize:16,fontWeight:"bold",marginBottom:4}}>結の会スージー三線教室</div>
           <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:24}}>お稽古管理アプリ</div>
+
+          {/* 今日の日付と直近イベント */}
+          <div style={{textAlign:"center",marginBottom:8}}>
+            <div style={{color:"rgba(255,255,255,0.9)",fontSize:13}}>
+              {new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}
+            </div>
+            {events.filter(ev=>(new Date()-new Date(ev.date))/86400000<=14).sort((a,b)=>a.date.localeCompare(b.date))[0] && (() => {
+              const ev = events.filter(ev=>(new Date()-new Date(ev.date))/86400000<=14).sort((a,b)=>a.date.localeCompare(b.date))[0];
+              return (
+                <div style={{marginTop:6,background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 12px"}}>
+                  <div style={{color:"#f0c040",fontSize:12,fontWeight:"bold"}}>📣 直近のイベント</div>
+                  <div style={{color:"#fff",fontSize:13,fontWeight:"bold",marginTop:2}}>{ev.title}</div>
+                  <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:2}}>
+                    {ev.date}{ev.time && `　🕐 ${ev.time}`}
+                  </div>
+                  {ev.place && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>📍 {ev.place}</div>}
+                </div>
+              );
+            })()}
+          </div>
 
           <div style={{background:"#fffdf8",borderRadius:16,padding:24,width:"100%",maxWidth:360,display:"flex",flexDirection:"column",gap:12}}>
 
@@ -1114,7 +1138,7 @@ function SanshinApp() {
             </div>
           </div>
           {nextEvent && (
-            <div style={S.eventBadge}>
+            <div style={{...S.eventBadge,cursor:"pointer"}} onClick={()=>setTab("events")}>
               <span style={S.eventBadgeTitle}>{nextEvent.date}</span>
               <span style={S.eventBadgeSub}>{nextEvent.title}</span>
             </div>
@@ -1124,8 +1148,8 @@ function SanshinApp() {
 
       {/* ナビ */}
       <nav style={S.nav}>
-        {[["advice","🎵 練習指南"],["ai","🤖 AI分析"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTab(id)}
+        {[["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["ai","🤖 AI分析"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
+          <button key={id} onClick={()=>{setTab(id);if(id==="search"){setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}}
             style={{...S.tab,...(tab===id?S.tabActive:{})}}>
             {label}
           </button>
@@ -1243,6 +1267,132 @@ function SanshinApp() {
           </div>
         )}
 
+        {/* ── 検索 ── */}
+        {tab==="search" && (
+          <div style={S.section}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
+              <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>🔎 曲目検索</h2>
+              <div style={{display:"flex",gap:6}}>
+                <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
+                  style={{background:C.teal,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  📄 工工四
+                </a>
+                <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
+                  style={{background:C.gold,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  🎵 音源
+                </a>
+              </div>
+            </div>
+            {/* 人気投票ボタン */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <button
+                style={{...S.btn,fontSize:11,padding:"6px 10px",
+                  background:searchMode==="vote"?C.accent:"transparent",
+                  color:searchMode==="vote"?"#fff":C.accent,
+                  border:`1px solid ${C.accent}`}}
+                onClick={()=>{setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}>
+                🏆 人気投票TOP20
+              </button>
+            </div>
+            <input
+              type="text"
+              style={S.dateInput}
+              placeholder="曲名または番号で検索..."
+              value={searchQuery}
+              onChange={e=>{setSearchQuery(e.target.value);setSearchRange(null);setSearchMode(e.target.value?"query":"vote");}}
+              autoFocus
+            />
+
+            {/* 番号帯ボタン（50件刻みで自動生成） */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {(() => {
+                const maxNum = Math.max(...Object.keys(songDB).map(k => parseInt(k)||0));
+                const ranges = [];
+                for (let from = 1; from <= maxNum; from += 50) {
+                  const to = Math.min(from + 49, maxNum);
+                  ranges.push([from, to]);
+                }
+                return ranges.map(([from, to]) => (
+                  <button key={from}
+                    style={{...S.btn,fontSize:11,padding:"6px 10px",
+                      background:searchRange&&searchRange[0]===from?C.teal:"transparent",
+                      color:searchRange&&searchRange[0]===from?"#fff":C.teal,
+                      border:`1px solid ${C.teal}`}}
+                    onClick={()=>{
+                      setSearchRange(searchRange&&searchRange[0]===from?null:[from,to]);
+                      setSearchQuery("");
+                      setSearchMode(searchRange&&searchRange[0]===from?"vote":"range");
+                    }}>
+                    {String(from).padStart(3,"0")}〜{String(to).padStart(3,"0")}
+                  </button>
+                ));
+              })()}
+            </div>
+            {(() => {
+              // 人気投票TOP20
+              if (searchMode === "vote") {
+                const voted = Object.entries(songDB)
+                  .map(([num, info]) => ({ num, info, votes: info.votes || 0 }))
+                  .filter(x => x.votes > 0)
+                  .sort((a,b) => b.votes - a.votes)
+                  .slice(0, 20);
+                return (
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{fontSize:12,color:C.sub}}>🏆 人気投票TOP20</div>
+                    {voted.length === 0
+                      ? <div style={S.empty}>まだ投票データがありません</div>
+                      : voted.map(({num, info, votes}, idx) => {
+                          const stat = songStats[num];
+                          return (
+                            <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.accent}`,padding:"10px 12px"}}>
+                              <span style={{fontSize:13,fontWeight:"bold",color:idx<3?C.accent:C.sub,minWidth:24}}>#{idx+1}</span>
+                              <span style={S.songNum}>{num}</span>
+                              <span style={{...S.songTitle,flex:1}}>{info.title}</span>
+                              <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>❤️{votes}</span>
+                              <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                            </div>
+                          );
+                        })
+                    }
+                  </div>
+                );
+              }
+              // 番号帯・テキスト検索
+              const q = searchQuery.trim().toLowerCase();
+              const results = Object.entries(songDB)
+                .filter(([num, info]) => {
+                  if (searchRange) {
+                    const n = parseInt(num);
+                    return n >= searchRange[0] && n <= searchRange[1];
+                  }
+                  if (!q) return false;
+                  return num.includes(q) || info.title.toLowerCase().includes(q);
+                })
+                .sort((a,b) => a[0].localeCompare(b[0]));
+              return (
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <div style={{fontSize:12,color:C.sub}}>{results.length}件</div>
+                  {results.length === 0
+                    ? <div style={S.empty}>該当する曲が見つかりません</div>
+                    : results.map(([num, info]) => {
+                        const stat = songStats[num];
+                        return (
+                          <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
+                            <span style={S.songNum}>{num}</span>
+                            <span style={{...S.songTitle,flex:1}}>{info.title}</span>
+                            {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
+                            {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
+                            <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* ── イベント ── */}
         {tab==="events" && (
           <div style={S.section}>
@@ -1269,7 +1419,7 @@ function SanshinApp() {
                     <input type="text" style={S.dateInput} placeholder="時間（例: 14:00〜16:00）"
                         value={editingEvent.time||""}
                         onChange={e=>setEditingEvent({...editingEvent,time:e.target.value})}/>
-                    <input type="text" style={S.dateInput} placeholder="場所"
+                    <input type="text" style={S.dateInput} placeholder="場所など"
                         value={editingEvent.place||""}
                         onChange={e=>setEditingEvent({...editingEvent,place:e.target.value})}/>
                       <div style={{display:"flex",gap:8}}>
@@ -1290,22 +1440,21 @@ function SanshinApp() {
                     </div>
                   ) : (
                     <div style={{...S.eventCard,opacity:past?0.5:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
-                        <div style={{fontSize:15,color:C.sub,whiteSpace:"nowrap"}}>{ev.date}</div>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1}}>
                         <div style={{display:"flex",flexDirection:"column",gap:2,flex:1}}>
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
                             <div style={{fontSize:16,fontWeight:"bold"}}>{ev.title}</div>
                             {!ev.confirmed && <span style={S.tentativeBadge}>仮</span>}
                             {past && <span style={{fontSize:11,color:C.sub}}>終了</span>}
                           </div>
-                          {(ev.time||ev.place) && (
-                            <div style={{fontSize:12,color:C.sub}}>
-                              {ev.time && <span>🕐 {ev.time}　</span>}
-                              {ev.place && <span>📍 {ev.place}</span>}
-                            </div>
+                          <div style={{fontSize:13,color:C.sub}}>
+                            {ev.date}{ev.time && <span>　🕐 {ev.time}</span>}
+                          </div>
+                          {ev.place && (
+                            <div style={{fontSize:12,color:C.sub}}>📍 {ev.place}</div>
                           )}
                         </div>
-                        <div style={{display:"flex",gap:6,marginLeft:"auto",flexShrink:0}}>
+                        <div style={{display:"flex",gap:6,flexShrink:0}}>
                           <button style={{...S.taruBtn}} onClick={()=>setEditingEvent({...ev})}>✏️ 編集</button>
                           <button style={{...S.taruBtn,border:`1px solid ${C.accent}`,color:C.accent}}
                             onClick={()=>setConfirmDeleteEventId(ev.id)}>🗑️</button>
@@ -1390,11 +1539,16 @@ function SanshinApp() {
 
                 {/* 全曲練習回数 */}
                 <div style={S.adviceCard}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <div style={S.adviceHeader}>📊 全曲練習回数</div>
                     <span style={{fontSize:11,color:C.sub}}>{diary.length}回記録</span>
                     <span style={{fontSize:11,color:C.sub}}>／</span>
                     <span style={{fontSize:11,color:C.sub}}>{Object.keys(songStats).length}曲</span>
+                    {diary.length > 0 && (
+                      <span style={{fontSize:11,color:C.sub}}>
+                        📅 {diary[diary.length-1].date.replace(/-/g,"/")}〜
+                      </span>
+                    )}
                   </div>
                   {Object.entries(songStats).sort((a,b)=>b[1].count-a[1].count).map(([num,info])=>{
                     const m=getMastery(info.count);
@@ -1404,6 +1558,11 @@ function SanshinApp() {
                           <span style={S.songNum}>{num}</span>
                           <span style={S.songTitle}>{info.title}</span>
                           <span style={S.statCount}>{info.count}回</span>
+                          {info.firstDate && info.firstDate !== info.lastDate && (
+                            <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
+                              {info.firstDate.replace(/-/g, "/")}〜
+                            </span>
+                          )}
                           {info.lastDate && (
                             <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
                               {info.lastDate.replace(/-/g, "/")}
@@ -1597,7 +1756,7 @@ function SanshinApp() {
               value={newEvent.date} onChange={e=>setNewEvent({...newEvent,date:e.target.value})}/>
             <input type="text" style={S.dateInput} placeholder="時間（例: 14:00〜16:00）"
               value={newEvent.time} onChange={e=>setNewEvent({...newEvent,time:e.target.value})}/>
-            <input type="text" style={S.dateInput} placeholder="場所"
+            <input type="text" style={S.dateInput} placeholder="場所など"
               value={newEvent.place} onChange={e=>setNewEvent({...newEvent,place:e.target.value})}/>
             <div style={{display:"flex",gap:8}}>
               <button style={{...S.btn,flex:1,background:newEvent.confirmed?C.teal:C.border,color:newEvent.confirmed?"#fff":C.text}}
