@@ -1052,8 +1052,8 @@ function SanshinApp() {
             <div style={{color:"rgba(255,255,255,0.9)",fontSize:13}}>
               {new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}
             </div>
-            {events.filter(ev=>(new Date()-new Date(ev.date))/86400000<=14).sort((a,b)=>a.date.localeCompare(b.date))[0] && (() => {
-              const ev = events.filter(ev=>(new Date()-new Date(ev.date))/86400000<=14).sort((a,b)=>a.date.localeCompare(b.date))[0];
+            {events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0] && (() => {
+              const ev = events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0];
               return (
                 <div style={{marginTop:6,background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 12px"}}>
                   <div style={{color:"#f0c040",fontSize:12,fontWeight:"bold"}}>📣 直近のイベント</div>
@@ -1306,13 +1306,13 @@ function SanshinApp() {
             {/* 番号帯ボタン（50件刻みで自動生成） */}
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {(() => {
-                const maxNum = Math.max(...Object.keys(songDB).map(k => parseInt(k)||0));
+                const maxNum = Math.max(...Object.keys(songDB).map(k => parseInt(k)||0).filter(n => n < 900));
                 const ranges = [];
                 for (let from = 1; from <= maxNum; from += 50) {
                   const to = Math.min(from + 49, maxNum);
                   ranges.push([from, to]);
                 }
-                return ranges.map(([from, to]) => (
+                const buttons = ranges.map(([from, to]) => (
                   <button key={from}
                     style={{...S.btn,fontSize:11,padding:"6px 10px",
                       background:searchRange&&searchRange[0]===from?C.teal:"transparent",
@@ -1326,6 +1326,25 @@ function SanshinApp() {
                     {String(from).padStart(3,"0")}〜{String(to).padStart(3,"0")}
                   </button>
                 ));
+                // 999番の特殊曲が存在する場合はボタンを追加
+                const has999 = Object.keys(songDB).some(k => parseInt(k) >= 900);
+                if (has999) {
+                  buttons.push(
+                    <button key={999}
+                      style={{...S.btn,fontSize:11,padding:"6px 10px",
+                        background:searchRange&&searchRange[0]===999?C.teal:"transparent",
+                        color:searchRange&&searchRange[0]===999?"#fff":C.teal,
+                        border:`1px solid ${C.teal}`}}
+                      onClick={()=>{
+                        setSearchRange(searchRange&&searchRange[0]===999?null:[999,999]);
+                        setSearchQuery("");
+                        setSearchMode(searchRange&&searchRange[0]===999?"vote":"range");
+                      }}>
+                      999〜
+                    </button>
+                  );
+                }
+                return buttons;
               })()}
             </div>
             {(() => {
@@ -1363,7 +1382,7 @@ function SanshinApp() {
                 .filter(([num, info]) => {
                   if (searchRange) {
                     const n = parseInt(num);
-                    return n >= searchRange[0] && n <= searchRange[1];
+                    return searchRange[0] === 999 ? n >= 900 : n >= searchRange[0] && n <= searchRange[1];
                   }
                   if (!q) return false;
                   return num.includes(q) || info.title.toLowerCase().includes(q);
@@ -1406,7 +1425,7 @@ function SanshinApp() {
             {events.filter(ev => (new Date() - new Date(ev.date)) / 86400000 <= 14).map(ev=>{
               const past = ev.date < today;
               return (
-                <div key={ev.id}>
+                <div key={ev.id} style={{opacity: past ? 0.5 : 1}}>
                   {editingEvent?.id===ev.id ? (
                     <div style={{...S.eventCard,flexDirection:"column",gap:10,alignItems:"stretch"}}>
                       <div style={{fontWeight:"bold",color:C.teal}}>✏️ {ev.title} を編集</div>
