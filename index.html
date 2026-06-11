@@ -135,8 +135,8 @@ function parseLineText(text, overrideDate) {
 
 // ── 曲名DB ────────────────────────────────────────────
 const SONG_DB_DEFAULT = {
-  "001":{"title":"安里屋ユンタ"},
-  "002":{"title":"てぃんさぐぬ花"},
+  "001":{"title":"安里屋ユンタ","audioUrl":"https://drive.google.com/file/d/1eUrGyzmcxEfyi82D5SLMZhYvWo034GIb/view"},
+  "002":{"title":"てぃんさぐぬ花","audioUrl":"https://drive.google.com/file/d/1eUrGyzmcxEfyi82D5SLMZhYvWo034GIb/view"},
   "003":{"title":"安波節"},
   "004":{"title":"なりやまあやぐ"},
   "005":{"title":"童神"},
@@ -177,7 +177,7 @@ const SONG_DB_DEFAULT = {
   "041":{"title":"えんどうの花A"},
   "042":{"title":"安里屋ゆんた_"},
   "043":{"title":"島唄A4"},
-  "044":{"title":"伊良部トーガニ"},
+  "044":{"title":"伊良部トーガニ","audioUrl":"https://drive.google.com/file/d/1eUrGyzmcxEfyi82D5SLMZhYvWo034GIb/view"},
   "045":{"title":"おぼろ月夜"},
   "046":{"title":"梅の香り"},
   "047":{"title":"結の花 1P"},
@@ -1125,6 +1125,12 @@ function SanshinApp() {
               </>
             )}
           </div>
+          {/* 音源再生の注意書き */}
+          <div style={{textAlign:"center",marginTop:8}}>
+            <div style={{color:"rgba(255,255,255,0.6)",fontSize:10}}>
+              🎵 音源再生はGoogleアカウントにログインして使ってね！
+            </div>
+          </div>
         </div>
       )}
       {/* ヘッダー */}
@@ -1402,6 +1408,10 @@ function SanshinApp() {
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
                             <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                            {info.audioUrl && (
+                              <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                            )}
                           </div>
                         );
                       })
@@ -1588,6 +1598,10 @@ function SanshinApp() {
                             </span>
                           )}
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                          {info.audioUrl && (
+                            <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                          )}
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
                           <div style={S.barWrap}><div style={{...S.bar,width:`${Math.round(info.count / maxSongCount * 100)}%`}}/></div>
@@ -1880,12 +1894,18 @@ function AdviceBlock({data}) {
 
 function SongRow({song, highlight, songDB=SONG_DB}) {
   const isUnknown = !songDB[song.number] || highlight;
+  const audioUrl = songDB[song.number]?.audioUrl;
   return (
     <div style={{...S.songRow, borderLeft: isUnknown ? "3px solid #e67e22" : `3px solid ${C.gold}`, background: isUnknown ? "#fff8f0" : "#faf7f2"}}>
       <span style={S.songOrder}>#{song.order}</span>
       <span style={{...S.songNum, background: isUnknown ? "#e67e22" : C.border, color: isUnknown ? "#fff" : C.sub}}>{song.number}</span>
       <span style={S.songTitle}>{song.title}</span>
       {isUnknown && <span style={{fontSize:10,color:"#e67e22",fontWeight:"bold",whiteSpace:"nowrap"}}>⚠️ 未登録</span>}
+      {audioUrl
+        ? <a href={audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+            style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
+        : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+      }
     </div>
   );
 }
