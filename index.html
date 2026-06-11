@@ -1408,10 +1408,11 @@ function SanshinApp() {
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
                             <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
-                            {info.audioUrl && (
-                              <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
-                            )}
+                            {info.audioUrl
+                              ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                                  style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                              : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                            }
                           </div>
                         );
                       })
@@ -1549,6 +1550,11 @@ function SanshinApp() {
                         <span style={S.songNum}>{s.number}</span>
                         <span style={S.songTitle}>{s.title}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                        {songDB[s.number]?.audioUrl
+                          ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
+                          : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                        }
                       </div>
                     ))
                   }
@@ -1561,6 +1567,11 @@ function SanshinApp() {
                         <span style={S.songNum}>{s.number}</span>
                         <span style={S.songTitle}>{s.title}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                        {songDB[s.number]?.audioUrl
+                          ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
+                          : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                        }
                       </div>
                     ))
                   }
@@ -1598,10 +1609,11 @@ function SanshinApp() {
                             </span>
                           )}
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
-                          {info.audioUrl && (
-                            <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
-                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
-                          )}
+                          {songDB[num]?.audioUrl
+                            ? <a href={songDB[num].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                            : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                          }
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
                           <div style={S.barWrap}><div style={{...S.bar,width:`${Math.round(info.count / maxSongCount * 100)}%`}}/></div>
