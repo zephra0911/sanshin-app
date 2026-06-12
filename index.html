@@ -1055,13 +1055,16 @@ function SanshinApp() {
             {events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0] && (() => {
               const ev = events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0];
               return (
-                <div style={{marginTop:6,background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 12px"}}>
-                  <div style={{color:"#f0c040",fontSize:12,fontWeight:"bold"}}>📣 直近のイベント</div>
-                  <div style={{color:"#fff",fontSize:13,fontWeight:"bold",marginTop:2}}>{ev.title}</div>
-                  <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:2}}>
-                    {ev.date}{ev.time && `　🕐 ${ev.time}`}
+                <div style={{marginTop:6,background:"rgba(255,140,0,0.4)",border:"1px solid rgba(255,140,0,0.7)",borderRadius:8,padding:"8px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                    <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:14}}>📣</span>
+                    <span style={{color:"#f0c040",fontSize:12,fontWeight:"bold"}}>直近のイベント</span>
                   </div>
-                  {ev.place && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>📍 {ev.place}</div>}
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{color:"#fff",fontSize:13,fontWeight:"bold"}}>{ev.title}</span>
+                    <span style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>{ev.date}{ev.time && `　🕐 ${ev.time}`}</span>
+                  </div>
+                  {ev.place && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:2}}>📍 {ev.place}</div>}
                 </div>
               );
             })()}
@@ -1145,7 +1148,11 @@ function SanshinApp() {
           </div>
           {nextEvent && (
             <div style={{...S.eventBadge,cursor:"pointer"}} onClick={()=>setTab("events")}>
-              <span style={S.eventBadgeTitle}>{nextEvent.date}</span>
+              <style>{`@keyframes ring{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-15deg)}40%{transform:rotate(15deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(10deg)}}`}</style>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:12}}>📣</span>
+                <span style={S.eventBadgeTitle}>{nextEvent.date}</span>
+              </div>
               <span style={S.eventBadgeSub}>{nextEvent.title}</span>
             </div>
           )}
@@ -1154,7 +1161,7 @@ function SanshinApp() {
 
       {/* ナビ */}
       <nav style={S.nav}>
-        {[["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["ai","🤖 AI分析"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
+        {[["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
           <button key={id} onClick={()=>{setTab(id);if(id==="search"){setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}}
             style={{...S.tab,...(tab===id?S.tabActive:{})}}>
             {label}
@@ -1188,6 +1195,7 @@ function SanshinApp() {
               )}
             </div>
             {parseError && <div style={S.error}>⚠️ {parseError}</div>}
+
             {parseResults.length>0 && (
               <div style={S.section}>
                 {parseResults.length>1 && <div style={S.multiNotice}>📋 {parseResults.length}回分を検出</div>}
@@ -1270,6 +1278,30 @@ function SanshinApp() {
                 </div>
               ))
             }
+            {/* スプレッドシート連携 */}
+            <div style={{...S.adviceCard,marginTop:16}}>
+              <div style={{fontSize:12,fontWeight:"bold",color:C.sub,marginBottom:6}}>📊 スプレッドシート連携（メンテナンス）</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <div style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:IS_PRODUCTION?C.tealLight:"#fff8e1",color:IS_PRODUCTION?C.teal:"#7a6000"}}>
+                  {IS_PRODUCTION ? "🌐 本番モード" : "🧪 テストモード"}
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...S.btn,background:C.teal,color:"#fff",opacity:gasSyncing?0.7:1,fontSize:12}}
+                    onClick={handleLoadFromGAS} disabled={gasSyncing}>
+                    {gasSyncing?"⏳ 処理中...":"📥 読込"}
+                  </button>
+                  <button style={{...S.btn,background:C.gold,color:"#fff",opacity:gasSyncing?0.7:1,fontSize:12}}
+                    onClick={handleSaveToGAS} disabled={gasSyncing}>
+                    {gasSyncing?"⏳ 処理中...":"📤 保存"}
+                  </button>
+                </div>
+              </div>
+              {gasStatus && (
+                <div style={{fontSize:12,color:gasStatus.startsWith("✅")?C.teal:gasStatus.startsWith("⚠️")?"#f39c12":C.accent,marginTop:4}}>
+                  {gasStatus}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1605,12 +1637,12 @@ function SanshinApp() {
                           <span style={S.statCount}>{info.count}回</span>
                           {info.firstDate && info.firstDate !== info.lastDate && (
                             <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
-                              {info.firstDate.replace(/-/g, "/")}〜
+                              {info.firstDate.slice(2).replace(/-/g, "/")}〜
                             </span>
                           )}
                           {info.lastDate && (
                             <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
-                              {info.lastDate.replace(/-/g, "/")}
+                              {info.lastDate.slice(5).replace(/-/g, "/")}
                             </span>
                           )}
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
@@ -1696,29 +1728,7 @@ function SanshinApp() {
               {importMsg && <div style={{fontSize:13,color:importMsg.startsWith("✅")?C.teal:C.accent}}>{importMsg}</div>}
             </div>
 
-            {/* スプレッドシート連携 */}
-            <div style={S.adviceCard}>
-              <div style={S.adviceHeader}>📊 スプレッドシート連携</div>
-              <div style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:IS_PRODUCTION?C.tealLight:"#fff8e1",color:IS_PRODUCTION?C.teal:"#7a6000",display:"inline-block"}}>
-                {IS_PRODUCTION ? "🌐 本番モード（スプレッドシート連携中）" : "🧪 テストモード（ハードコードデータ使用中）"}
-              </div>
-              <p style={{...S.hint,margin:0}}>Googleスプレッドシートとデータを同期します。</p>
-              <div style={{display:"flex",gap:8}}>
-                <button style={{...S.btn,background:C.teal,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
-                  onClick={handleLoadFromGAS} disabled={gasSyncing}>
-                  {gasSyncing?"⏳ 処理中...":"📥 シートから読込"}
-                </button>
-                <button style={{...S.btn,background:C.gold,color:"#fff",flex:1,opacity:gasSyncing?0.7:1}}
-                  onClick={handleSaveToGAS} disabled={gasSyncing}>
-                  {gasSyncing?"⏳ 処理中...":"📤 シートへ保存"}
-                </button>
-              </div>
-              {gasStatus && (
-                <div style={{fontSize:13,color:gasStatus.startsWith("✅")?C.teal:gasStatus.startsWith("⚠️")?"#f39c12":C.accent}}>
-                  {gasStatus}
-                </div>
-              )}
-            </div>
+
           </div>
         )}
 
