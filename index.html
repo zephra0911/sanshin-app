@@ -597,6 +597,20 @@ function gasLoginCountUp(name) {
   return fetch(GAS_URL + "?action=loginCountUp&name=" + encodeURIComponent(name));
 }
 
+function gasSaveSongInfo(info) {
+  if (!IS_PRODUCTION) return Promise.resolve({ success: true });
+  var url = GAS_URL + "?action=saveSongInfo"
+    + "&number=" + encodeURIComponent(info.number)
+    + "&award=" + encodeURIComponent(info.award || "")
+    + "&awardee=" + encodeURIComponent(info.awardee || "")
+    + "&chindami=" + encodeURIComponent(info.chindami || "")
+    + "&note=" + encodeURIComponent(info.note || "")
+    + "&lyricist=" + encodeURIComponent(info.lyricist || "")
+    + "&composer=" + encodeURIComponent(info.composer || "")
+    + "&genre=" + encodeURIComponent(info.genre || "");
+  return fetch(url).then(function(r){ return r.json(); });
+}
+
 function gasPost(action, data) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
   var key = action === "saveDiary" ? "diary"
@@ -666,6 +680,9 @@ function SanshinApp() {
 
   // 練習指南
   const [taruModal, setTaruModal] = useState(null);
+  const [songInfoModal, setSongInfoModal] = useState(null); // {number, title, ...}
+  const [songInfoEdit, setSongInfoEdit] = useState(null);
+  const [songInfoSaving, setSongInfoSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchRange, setSearchRange] = useState(null);
   const [searchMode, setSearchMode] = useState("vote"); // vote | range | query
@@ -1208,7 +1225,7 @@ function SanshinApp() {
                       return (
                         <div key={grp} style={S.groupSection}>
                           <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
-                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB}/>)}
+                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}/>)}
                         </div>
                       );
                     })}
@@ -1269,7 +1286,7 @@ function SanshinApp() {
                         return (
                           <div key={grp} style={S.groupSection}>
                             <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
-                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB}/>)}
+                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}/>)}
                           </div>
                         );
                       })}
@@ -1403,7 +1420,8 @@ function SanshinApp() {
                           return (
                             <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.accent}`,padding:"10px 12px"}}>
                               <span style={{fontSize:13,fontWeight:"bold",color:idx<3?C.accent:C.sub,minWidth:24}}>#{idx+1}</span>
-                              <span style={S.songNum}>{num}</span>
+                              <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
+                                onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
                               <span style={{...S.songTitle,flex:1}}>{info.title}</span>
                               <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>❤️{votes}</span>
                               <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
@@ -1440,7 +1458,8 @@ function SanshinApp() {
                         const stat = songStats[num];
                         return (
                           <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
-                            <span style={S.songNum}>{num}</span>
+                            <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
+                              onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
                             <span style={{...S.songTitle,flex:1}}>{info.title}</span>
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
@@ -1584,7 +1603,9 @@ function SanshinApp() {
                     : recKimono.map(s=>(
                       <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
                         <span style={S.songOrder}>#{s.order}</span>
-                        <span style={S.songNum}>{s.number}</span>
+                        <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
+                          onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
+                          {s.number}</span>
                         <span style={S.songTitle}>{s.title}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
                         {songDB[s.number]?.audioUrl
@@ -1601,7 +1622,9 @@ function SanshinApp() {
                     : recHiyoko.map(s=>(
                       <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
                         <span style={S.songOrder}>#{s.order}</span>
-                        <span style={S.songNum}>{s.number}</span>
+                        <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
+                          onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
+                          {s.number}</span>
                         <span style={S.songTitle}>{s.title}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
                         {songDB[s.number]?.audioUrl
@@ -1632,19 +1655,12 @@ function SanshinApp() {
                     return (
                       <div key={num} style={{...S.statRow,flexWrap:"wrap",gap:6}}>
                         <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
-                          <span style={S.songNum}>{num}</span>
+                          <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
+                            onClick={()=>{const db=songDB[num];if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||""});}}}>
+                            {num}</span>
                           <span style={S.songTitle}>{info.title}</span>
                           <span style={S.statCount}>{info.count}回</span>
-                          {info.firstDate && info.firstDate !== info.lastDate && (
-                            <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
-                              {info.firstDate.slice(2).replace(/-/g, "/")}〜
-                            </span>
-                          )}
-                          {info.lastDate && (
-                            <span style={{fontSize:10,color:C.sub,whiteSpace:"nowrap"}}>
-                              {info.lastDate.slice(5).replace(/-/g, "/")}
-                            </span>
-                          )}
+
                           <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                           {songDB[num]?.audioUrl
                             ? <a href={songDB[num].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1733,6 +1749,116 @@ function SanshinApp() {
         )}
 
       </main>
+
+      {/* ── 曲情報モーダル ── */}
+      {songInfoModal && songInfoEdit && (
+        <div style={S.modalOverlay} onClick={()=>setSongInfoModal(null)}>
+          <div style={{...S.modalBox,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={S.modalTitle}>📋 曲情報：{songInfoModal.number} {songInfoModal.title}</div>
+
+            {/* 作詞 */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>✍️ 作詞</div>
+              <input type="text" style={S.dateInput} placeholder="作詞者名"
+                value={songInfoEdit.lyricist||""}
+                onChange={e=>setSongInfoEdit({...songInfoEdit,lyricist:e.target.value})}/>
+            </div>
+
+            {/* 作曲 */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🎼 作曲</div>
+              <input type="text" style={S.dateInput} placeholder="作曲者名"
+                value={songInfoEdit.composer||""}
+                onChange={e=>setSongInfoEdit({...songInfoEdit,composer:e.target.value})}/>
+            </div>
+
+            {/* 曲分類 */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🗂️ 曲分類</div>
+              <input type="text" style={S.dateInput} placeholder="沖縄民謡、八重山民謡など"
+                value={songInfoEdit.genre||""}
+                onChange={e=>setSongInfoEdit({...songInfoEdit,genre:e.target.value})}/>
+            </div>
+
+            {/* ちんだみ */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🎵 ちんだみ</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["本調子","二上げ","三下げ",""].map(v=>(
+                  <button key={v} style={{...S.btn,fontSize:12,padding:"6px 12px",
+                    background:songInfoEdit.chindami===v?C.teal:"transparent",
+                    color:songInfoEdit.chindami===v?"#fff":C.sub,
+                    border:`1px solid ${songInfoEdit.chindami===v?C.teal:C.border}`}}
+                    onClick={()=>setSongInfoEdit({...songInfoEdit,chindami:v})}>
+                    {v||"未設定"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 練習期間 */}
+            {(songInfoModal?.firstDate || songInfoModal?.lastDate) && (
+              <div style={{marginBottom:12,padding:"8px 12px",background:C.tealLight,borderRadius:8}}>
+                <div style={{fontSize:12,color:C.sub,marginBottom:2}}>📅 練習期間</div>
+                <div style={{fontSize:13,color:C.teal,fontWeight:"bold"}}>
+                  {songInfoModal.firstDate && songInfoModal.firstDate !== songInfoModal.lastDate
+                    ? `${songInfoModal.firstDate.replace(/-/g,"/")} 〜 ${songInfoModal.lastDate.replace(/-/g,"/")}`
+                    : songInfoModal.lastDate?.replace(/-/g,"/")}
+                </div>
+              </div>
+            )}
+
+            {/* 推奨部門 */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🏆 推奨部門（過去実績）</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["新人賞","優秀賞","最高賞",""].map(v=>(
+                  <button key={v} style={{...S.btn,fontSize:12,padding:"6px 12px",
+                    background:songInfoEdit.award===v?C.gold:"transparent",
+                    color:songInfoEdit.award===v?"#fff":C.sub,
+                    border:`1px solid ${songInfoEdit.award===v?C.gold:C.border}`}}
+                    onClick={()=>setSongInfoEdit({...songInfoEdit,award:v})}>
+                    {v||"未設定"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 受賞者情報 */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>👤 受賞者情報（この曲での受賞者）</div>
+              <input type="text" style={S.dateInput} placeholder="受賞者名（複数名はカンマ区切り）"
+                value={songInfoEdit.awardee||""}
+                onChange={e=>setSongInfoEdit({...songInfoEdit,awardee:e.target.value})}/>
+            </div>
+
+            {/* 備考 */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>📝 備考</div>
+              <textarea style={{...S.textarea,minHeight:60}} placeholder="メモ書き"
+                value={songInfoEdit.note||""}
+                onChange={e=>setSongInfoEdit({...songInfoEdit,note:e.target.value})}/>
+            </div>
+
+            <div style={{display:"flex",gap:8}}>
+              <button style={{...S.btn,...S.btnPrimary,flex:1,opacity:songInfoSaving?0.7:1}}
+                disabled={songInfoSaving}
+                onClick={()=>{
+                  setSongInfoSaving(true);
+                  const updated = {...songDB[songInfoModal.number],...songInfoEdit};
+                  setSongDB({...songDB,[songInfoModal.number]:updated});
+                  gasSaveSongInfo(songInfoEdit)
+                    .catch(e=>console.error("保存エラー:",e))
+                    .finally(()=>setSongInfoSaving(false));
+                  setSongInfoModal(null);
+                }}>
+                {songInfoSaving?"⏳ 保存中...":"✅ 保存"}
+              </button>
+              <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>setSongInfoModal(null)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 日付入力モーダル ── */}
       {showDateModal && (
@@ -1919,13 +2045,17 @@ function AdviceBlock({data}) {
   );
 }
 
-function SongRow({song, highlight, songDB=SONG_DB}) {
+function SongRow({song, highlight, songDB=SONG_DB, onSongInfo=null}) {
   const isUnknown = !songDB[song.number] || highlight;
   const audioUrl = songDB[song.number]?.audioUrl;
+  const info = songDB[song.number];
   return (
     <div style={{...S.songRow, borderLeft: isUnknown ? "3px solid #e67e22" : `3px solid ${C.gold}`, background: isUnknown ? "#fff8f0" : "#faf7f2"}}>
       <span style={S.songOrder}>#{song.order}</span>
-      <span style={{...S.songNum, background: isUnknown ? "#e67e22" : C.border, color: isUnknown ? "#fff" : C.sub}}>{song.number}</span>
+      <span style={{...S.songNum, background: isUnknown ? "#e67e22" : C.border, color: isUnknown ? "#fff" : C.sub,
+        cursor: onSongInfo&&info ? "pointer" : "default",
+        textDecoration: onSongInfo&&info ? "underline" : "none"}}
+        onClick={()=>{ if(onSongInfo&&info) onSongInfo(song.number, info); }}>{song.number}</span>
       <span style={S.songTitle}>{song.title}</span>
       {isUnknown && <span style={{fontSize:10,color:"#e67e22",fontWeight:"bold",whiteSpace:"nowrap"}}>⚠️ 未登録</span>}
       {audioUrl
