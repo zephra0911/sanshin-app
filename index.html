@@ -1487,7 +1487,11 @@ function SanshinApp() {
                                   {num}
                                 </span>
                                 <span style={{...S.songTitle,flex:1}}>{info.title}</span>
-
+                                {info.awardee && (
+                                  <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>
+                                    ❤️{info.awardee.split(",").filter(Boolean).length}
+                                  </span>
+                                )}
                                 {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                                 {info.audioUrl
                                   ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1906,9 +1910,17 @@ function SanshinApp() {
             {/* 受賞者情報 */}
             <div style={{marginBottom:12}}>
               <div style={{fontSize:12,color:C.sub,marginBottom:4}}>👤 受賞者情報（この曲での受賞者）</div>
-              <input type="text" style={S.dateInput} placeholder="受賞者名（複数名はカンマ区切り）"
-                value={songInfoEdit.awardee||""}
-                onChange={e=>setSongInfoEdit({...songInfoEdit,awardee:e.target.value})}/>
+              {isAdmin ? (
+                <input type="text" style={S.dateInput} placeholder="受賞者名（複数名はカンマ区切り）"
+                  value={songInfoEdit.awardee||""}
+                  onChange={e=>setSongInfoEdit({...songInfoEdit,awardee:e.target.value})}/>
+              ) : (
+                <div style={{fontSize:13,color:C.text,padding:"6px 0"}}>
+                  {songInfoEdit.awardee
+                    ? `${songInfoEdit.awardee.split(",").filter(Boolean).length}名`
+                    : "記録なし"}
+                </div>
+              )}
             </div>
 
             {/* 備考 */}
