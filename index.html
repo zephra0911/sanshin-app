@@ -1470,7 +1470,11 @@ function SanshinApp() {
                     {awardOrder.map(award => {
                       const songs = Object.entries(songDB)
                         .filter(([,info]) => info.award === award)
-                        .sort((a,b) => a[0].localeCompare(b[0]));
+                        .sort((a,b) => {
+                          const ac = (a[1].awardee||"").split(",").filter(Boolean).length;
+                          const bc = (b[1].awardee||"").split(",").filter(Boolean).length;
+                          return bc - ac || a[0].localeCompare(b[0]);
+                        });
                       if (songs.length === 0) return null;
                       return (
                         <div key={award}>
@@ -1492,7 +1496,6 @@ function SanshinApp() {
                                     🏆{info.awardee.split(",").filter(Boolean).length}
                                   </span>
                                 )}
-                                {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                                 {info.audioUrl
                                   ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                                       style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
