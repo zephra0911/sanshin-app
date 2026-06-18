@@ -22,6 +22,12 @@
     const { useState } = React;
 
 // ── ユーティリティ ─────────────────────────────────────
+function chindamiIcon(chindami) {
+  if (chindami === "二上げ") return <span style={{fontSize:11,padding:"2px 5px",borderRadius:4,background:"#f0f0f0",color:"#555",fontWeight:"bold",whiteSpace:"nowrap"}}>↑2</span>;
+  if (chindami === "三下げ") return <span style={{fontSize:11,padding:"2px 5px",borderRadius:4,background:"#f0f0f0",color:"#555",fontWeight:"bold",whiteSpace:"nowrap"}}>↓3</span>;
+  return null;
+}
+
 function taruGoogleUrl(title) {
   return `https://www.google.com/search?q=${encodeURIComponent(title)}+%E5%94%84+%E5%88%86%E6%9E%90`;
 }
@@ -1446,7 +1452,7 @@ function SanshinApp() {
                               <span style={{fontSize:13,fontWeight:"bold",color:idx<3?C.accent:C.sub,minWidth:24}}>#{idx+1}</span>
                               <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                                 onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
-                              <span style={{...S.songTitle,flex:1}}>{info.title}</span>
+                              <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
                               <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>❤️{votes}</span>
                               {info.audioUrl
                                 ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1490,7 +1496,7 @@ function SanshinApp() {
                                   onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>
                                   {num}
                                 </span>
-                                <span style={{...S.songTitle,flex:1}}>{info.title}</span>
+                                <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
                                 {info.awardee && (
                                   <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>
                                     🏆{info.awardee.split(",").filter(Boolean).length}
@@ -1534,7 +1540,7 @@ function SanshinApp() {
                           <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                             <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                               onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
-                            <span style={{...S.songTitle,flex:1}}>{info.title}</span>
+                            <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
                             {info.audioUrl
@@ -1680,7 +1686,7 @@ function SanshinApp() {
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
-                        <span style={S.songTitle}>{s.title}</span>
+                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
                         {songDB[s.number]?.audioUrl
                           ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1700,7 +1706,7 @@ function SanshinApp() {
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
-                        <span style={S.songTitle}>{s.title}</span>
+                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
                         {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
                         {songDB[s.number]?.audioUrl
                           ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1734,7 +1740,7 @@ function SanshinApp() {
                           <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                             onClick={()=>{const db=songDB[num];if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||""});}}}>
                             {num}</span>
-                          <span style={S.songTitle}>{info.title}</span>
+                          <span style={S.songTitle}>{info.title} {chindamiIcon(songDB[num]?.chindami)}</span>
                           <span style={S.statCount}>{info.count}回</span>
 
                           {songDB[num]?.audioUrl
@@ -2150,7 +2156,7 @@ function SongRow({song, highlight, songDB=SONG_DB, onSongInfo=null, onSearch=nul
         cursor: onSongInfo&&info ? "pointer" : "default",
         textDecoration: onSongInfo&&info ? "underline" : "none"}}
         onClick={()=>{ if(onSongInfo&&info) onSongInfo(song.number, info); }}>{song.number}</span>
-      <span style={S.songTitle}>{song.title}</span>
+      <span style={S.songTitle}>{song.title} {chindamiIcon(songDB[song.number]?.chindami)}</span>
       {isUnknown && <span style={{fontSize:10,color:"#e67e22",fontWeight:"bold",whiteSpace:"nowrap"}}>⚠️ 未登録</span>}
       {audioUrl
         ? <a href={audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
