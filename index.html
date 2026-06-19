@@ -533,6 +533,7 @@ const INITIAL_DIARY = [
 
 // ── Google Apps Script API ───────────────────────────
 // 環境判別: GitHub Pagesならスプレッドシート連携、それ以外はハードコード
+let _authToken = null; // グローバルトークン保持
 const IS_PRODUCTION = typeof location !== "undefined" &&
   location.hostname === "zephra0911.github.io";
 
@@ -561,6 +562,7 @@ async function gasAppendSessions(sessions) {
       action: "appendSession",
       date: session.date,
       songs: encodeURIComponent(JSON.stringify(session.songs)),
+      token: _authToken || "",
     });
     const res = await fetch(`${GAS_URL}?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -570,7 +572,7 @@ async function gasAppendSessions(sessions) {
 // セッション削除
 async function gasDeleteSession(date) {
   if (!IS_PRODUCTION) return;
-  const params = new URLSearchParams({ action: "deleteSession", date });
+  const params = new URLSearchParams({ action: "deleteSession", date, token: _authToken || "" });
   const res = await fetch(`${GAS_URL}?${params}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
@@ -611,7 +613,8 @@ function gasSaveSongInfo(info) {
     + "&note=" + encodeURIComponent(info.note || "")
     + "&lyricist=" + encodeURIComponent(info.lyricist || "")
     + "&composer=" + encodeURIComponent(info.composer || "")
-    + "&genre=" + encodeURIComponent(info.genre || "");
+    + "&genre=" + encodeURIComponent(info.genre || "")
+    + "&token=" + encodeURIComponent(_authToken || "");
   return fetch(url).then(function(r){ return r.json(); });
 }
 
@@ -633,12 +636,13 @@ function gasPost(action, data) {
         + "&key=" + encodeURIComponent(key)
         + "&chunk=" + encodeURIComponent(chunk)
         + "&index=" + idx
-        + "&total=" + chunks.length;
+        + "&total=" + chunks.length
+        + "&token=" + encodeURIComponent(_authToken || "");
       return fetch(url).then(function(r){ return r.json(); });
     });
   });
   return promise.then(function() {
-    var url = GAS_URL + "?action=commitChunk&key=" + encodeURIComponent(key);
+    var url = GAS_URL + "?action=commitChunk&key=" + encodeURIComponent(key) + "&token=" + encodeURIComponent(_authToken || "");
     return fetch(url).then(function(r){ return r.json(); });
   });
 }
@@ -655,6 +659,8 @@ function SanshinApp() {
   // ── ログイン ──────────────────────────────────────────
   const [loginStep, setLoginStep] = useState("name");
   const [userRole, setUserRole] = useState("利用者"); // 利用者・編集者・管理者
+  const [authToken, setAuthTokenState] = useState(null);
+  const setAuthToken = (t) => { _authToken = t; setAuthTokenState(t); };
   const [loginName, setLoginName] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -719,6 +725,7 @@ function SanshinApp() {
       if (result.exists) {
         // 権限をセット（GASから取得、未設定は利用者）
         setUserRole(result.role || "利用者");
+        setAuthToken(result.token || null);
         // 既存ユーザー：クイズへ
         const keys = Object.keys(SONG_DB);
         const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
@@ -745,7 +752,9 @@ function SanshinApp() {
 
   const handleLoginPassword = () => {
     if (loginPassword === "777") {
-      gasRegisterUser(loginName.trim());
+      gasRegisterUser(loginName.trim()).then(res => {
+        if (res && res.token) { setUserRole(res.role || "利用者"); setAuthToken(res.token); }
+      });
       setLoginStep("done");
     } else {
       setLoginError("パスワードが違います");
