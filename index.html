@@ -607,8 +607,6 @@ function gasSaveSongInfo(info) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true });
   var url = GAS_URL + "?action=saveSongInfo"
     + "&number=" + encodeURIComponent(info.number)
-    + "&award=" + encodeURIComponent(info.award || "")
-    + "&awardee=" + encodeURIComponent(info.awardee || "")
     + "&chindami=" + encodeURIComponent(info.chindami || "")
     + "&note=" + encodeURIComponent(info.note || "")
     + "&lyricist=" + encodeURIComponent(info.lyricist || "")
@@ -666,6 +664,15 @@ function SanshinApp() {
 
   const [tab, setTab] = useState("advice");
   const [songDB, setSongDB] = useState(SONG_DB_DEFAULT);
+  const [awardHistory, setAwardHistory] = useState(
+    IS_PRODUCTION ? {} : {
+      "001": { "最高賞": [{name:"鈴木花子",date:"2024-03-15"},{name:"田中太郎",date:"2024-03-15"}] },
+      "002": { "最高賞": [{name:"山田一郎",date:"2023-11-20"}] },
+      "044": { "優秀賞": [{name:"佐藤次郎",date:"2025-01-10"}] },
+      "058": { "優秀賞": [{name:"高橋三郎",date:"2024-08-05"},{name:"伊藤四郎",date:"2024-08-05"}] },
+      "096": { "新人賞": [{name:"渡辺五郎",date:"2026-02-14"}] },
+    }
+  );
   const [diary, setDiary] = useState([]);
   const [events, setEvents] = useState(BASE_EVENTS);
 
@@ -768,12 +775,14 @@ function SanshinApp() {
       if (IS_PRODUCTION) {
         // GitHub Pages: スプレッドシートから読み込む
         try {
-          const [diaryData, eventsData, importData, songsData] = await Promise.all([
+          const [diaryData, eventsData, importData, songsData, awardData] = await Promise.all([
             gasGet("getDiary"),
             gasGet("getEvents"),
             gasGet("getImport"),
             gasGet("getSongs"),
+            gasGet("getAwardHistory"),
           ]);
+          if (awardData && Object.keys(awardData).length > 0) setAwardHistory(awardData);
           // 曲マスタをSONG_DBに反映
           if (songsData && Object.keys(songsData).length > 0) {
             SONG_DB = songsData;
@@ -1048,6 +1057,19 @@ function SanshinApp() {
   }));
 
   const maxSongCount = Object.values(songStats).reduce((m, s) => Math.max(m, s.count), 1);
+
+  // 受賞履歴から曲ごとの最高位の賞と受賞者を取得
+  const getAwardInfo = (num) => {
+    const h = awardHistory[num];
+    if (!h) return { award: null, awardees: [] };
+    const priority = { "最高賞": 3, "優秀賞": 2, "新人賞": 1 };
+    let topAward = null, topP = 0;
+    for (const award in h) {
+      if (priority[award] > topP) { topP = priority[award]; topAward = award; }
+    }
+    const awardees = topAward ? h[topAward].map(x => x.name) : [];
+    return { award: topAward, awardees };
+  };
   const canEdit = userRole === "編集者" || userRole === "管理者";
   const isAdmin = userRole === "管理者";
   const latestSession = diary[0];
@@ -1474,11 +1496,12 @@ function SanshinApp() {
                   <div style={{display:"flex",flexDirection:"column",gap:12}}>
                     <div style={{fontSize:12,color:C.sub}}>🥇 受賞実績</div>
                     {awardOrder.map(award => {
-                      const songs = Object.entries(songDB)
-                        .filter(([,info]) => info.award === award)
+                      const songs = Object.keys(awardHistory)
+                        .filter(num => awardHistory[num][award])
+                        .map(num => [num, songDB[num] || {title:"(未登録)"}])
                         .sort((a,b) => {
-                          const ac = (a[1].awardee||"").split(",").filter(Boolean).length;
-                          const bc = (b[1].awardee||"").split(",").filter(Boolean).length;
+                          const ac = awardHistory[a[0]][award].length;
+                          const bc = awardHistory[b[0]][award].length;
                           return bc - ac || a[0].localeCompare(b[0]);
                         });
                       if (songs.length === 0) return null;
@@ -1497,11 +1520,9 @@ function SanshinApp() {
                                   {num}
                                 </span>
                                 <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
-                                {info.awardee && (
-                                  <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>
-                                    🏆{info.awardee.split(",").filter(Boolean).length}
-                                  </span>
-                                )}
+                                <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>
+                                  🏆{awardHistory[num][award].length}
+                                </span>
                                 {info.audioUrl
                                   ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                                       style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
@@ -1860,20 +1881,20 @@ function SanshinApp() {
               </div>
             )}
 
-            {/* 作詞 */}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>✍️ 作詞</div>
-              <input type="text" style={S.dateInput} placeholder="作詞者名"
-                value={songInfoEdit.lyricist||""}
-                onChange={e=>setSongInfoEdit({...songInfoEdit,lyricist:e.target.value})}/>
-            </div>
-
-            {/* 作曲 */}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🎼 作曲</div>
-              <input type="text" style={S.dateInput} placeholder="作曲者名"
-                value={songInfoEdit.composer||""}
-                onChange={e=>setSongInfoEdit({...songInfoEdit,composer:e.target.value})}/>
+            {/* 作詞・作曲 */}
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:C.sub,marginBottom:4}}>✍️ 作詞</div>
+                <input type="text" style={S.dateInput} placeholder="作詞者名"
+                  value={songInfoEdit.lyricist||""}
+                  onChange={e=>setSongInfoEdit({...songInfoEdit,lyricist:e.target.value})}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🎼 作曲</div>
+                <input type="text" style={S.dateInput} placeholder="作曲者名"
+                  value={songInfoEdit.composer||""}
+                  onChange={e=>setSongInfoEdit({...songInfoEdit,composer:e.target.value})}/>
+              </div>
             </div>
 
             {/* 曲分類 */}
@@ -1900,37 +1921,36 @@ function SanshinApp() {
               </div>
             </div>
 
-            {/* 推奨部門 */}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🏆 推奨部門（過去実績）</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["新人賞","優秀賞","最高賞",""].map(v=>(
-                  <button key={v} style={{...S.btn,fontSize:12,padding:"6px 12px",
-                    background:songInfoEdit.award===v?C.gold:"transparent",
-                    color:songInfoEdit.award===v?"#fff":C.sub,
-                    border:`1px solid ${songInfoEdit.award===v?C.gold:C.border}`}}
-                    onClick={()=>setSongInfoEdit({...songInfoEdit,award:v})}>
-                    {v||"未設定"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 受賞者情報 */}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>👤 受賞者情報（この曲での受賞者）</div>
-              {isAdmin ? (
-                <input type="text" style={S.dateInput} placeholder="受賞者名（複数名はカンマ区切り）"
-                  value={songInfoEdit.awardee||""}
-                  onChange={e=>setSongInfoEdit({...songInfoEdit,awardee:e.target.value})}/>
-              ) : (
-                <div style={{fontSize:13,color:C.text,padding:"6px 0"}}>
-                  {songInfoEdit.awardee
-                    ? `${songInfoEdit.awardee.split(",").filter(Boolean).length}名`
-                    : "記録なし"}
+            {/* 推奨部門（受賞履歴から自動集計・編集不可） */}
+            {(() => {
+              const ai = getAwardInfo(songInfoModal.number);
+              if (!ai.award) return null;
+              return (
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🏆 推奨部門（過去実績）</div>
+                  <div style={{fontSize:13,fontWeight:"bold",color:C.gold,padding:"6px 0"}}>
+                    {ai.award}
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
+
+            {/* 受賞者情報（受賞履歴から自動集計・編集不可） */}
+            {(() => {
+              const ai = getAwardInfo(songInfoModal.number);
+              if (!ai.award) return null;
+              return (
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,color:C.sub,marginBottom:4}}>👤 受賞者情報（この曲での受賞者）</div>
+                  <div style={{fontSize:13,color:C.text,padding:"6px 0"}}>
+                    {isAdmin ? ai.awardees.join("、") : `${ai.awardees.length}名`}
+                  </div>
+                  <div style={{fontSize:11,color:C.sub,marginTop:2}}>
+                    ※ 受賞情報はGoogleドライブの受賞履歴フォルダから自動集計されます
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 備考 */}
             <div style={{marginBottom:16}}>
