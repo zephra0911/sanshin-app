@@ -717,11 +717,16 @@ function SanshinApp() {
 
   // ── ログイン処理 ──────────────────────────────────────
   const handleLoginName = async () => {
-    if (!loginName.trim()) { setLoginError("名前を入力してください"); return; }
+    const trimmedName = loginName.trim();
+    if (!trimmedName) { setLoginError("名前を入力してください"); return; }
     setLoginError("");
     if (IS_PRODUCTION) {
-      const result = await gasCheckUser(loginName.trim());
+      const result = await gasCheckUser(trimmedName);
       setIsNewUser(!result.exists);
+      if (!result.exists && trimmedName.length < 3) {
+        setLoginError("お名前は3文字以上で入力してください");
+        return;
+      }
       if (result.exists) {
         // 権限をセット（GASから取得、未設定は利用者）
         setUserRole(result.role || "利用者");
