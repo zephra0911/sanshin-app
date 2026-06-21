@@ -19,7 +19,7 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useRef, useEffect } = React;
 
 // ── ユーティリティ ─────────────────────────────────────
 function chindamiIcon(chindami) {
@@ -704,6 +704,13 @@ function SanshinApp() {
   const [songInfoEdit, setSongInfoEdit] = useState(null);
   const [songInfoSaving, setSongInfoSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showChindami, setShowChindami] = useState(false);
+  const [chindamiMode, setChindamiMode] = useState("本調子");
+  const [playingString, setPlayingString] = useState(null);
+  const [metroOn, setMetroOn] = useState(false);
+  const [bpm, setBpm] = useState(80);
+  const audioCtxRef = useRef(null);
+  const metroIntervalRef = useRef(null);
   const [searchRange, setSearchRange] = useState(null);
   const [searchMode, setSearchMode] = useState("vote"); // vote | range | query
   const [exportText, setExportText] = useState("");
@@ -716,6 +723,75 @@ function SanshinApp() {
   const [gasSyncing, setGasSyncing] = useState(false);
 
   // ── ログイン処理 ──────────────────────────────────────
+  // ── ちんだみ（基準音再生） ────────────────────────────
+  const CHINDAMI_AUDIO_MAP = {
+    "本調子": { "A#": "audio/chindami/honjoshi_A.mp3", "B": "audio/chindami/honjoshi_B.mp3", "C": "audio/chindami/honjoshi_C.mp3" },
+    "二上げ": { "A#": "audio/chindami/niage_A.mp3",    "B": "audio/chindami/niage_B.mp3",    "C": "audio/chindami/niage_C.mp3" },
+    "三下げ": { "A#": "audio/chindami/sanage_A.mp3",   "B": "audio/chindami/sanage_B.mp3",   "C": "audio/chindami/sanage_C.mp3" },
+  };
+  const audioCacheRef = useRef({});
+
+  // 起動時に全音源を事前ダウンロードしてキャッシュ
+  useEffect(() => {
+    Object.values(CHINDAMI_AUDIO_MAP).forEach(notes => {
+      Object.values(notes).forEach(path => {
+        if (!audioCacheRef.current[path]) {
+          const audio = new Audio(path);
+          audio.preload = "auto";
+          audio.load();
+          audioCacheRef.current[path] = audio;
+        }
+      });
+    });
+  }, []);
+
+  const handlePlayString = (note) => {
+    const path = CHINDAMI_AUDIO_MAP[chindamiMode][note];
+    const audio = audioCacheRef.current[path] || new Audio(path);
+    audio.currentTime = 0;
+    audio.play().catch(e => console.error("再生エラー（音源ファイル未配置の可能性）:", e));
+    setPlayingString(note);
+    setTimeout(() => setPlayingString(null), 1000);
+  };
+
+  const getAudioCtx = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtxRef.current;
+  };
+
+  const playClick = (accent) => {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = accent ? 1200 : 800;
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  };
+
+  const toggleMetronome = () => {
+    if (metroOn) {
+      clearInterval(metroIntervalRef.current);
+      metroIntervalRef.current = null;
+      setMetroOn(false);
+    } else {
+      let beat = 0;
+      const intervalMs = 60000 / bpm;
+      playClick(true);
+      metroIntervalRef.current = setInterval(() => {
+        beat = (beat + 1) % 4;
+        playClick(beat === 0);
+      }, intervalMs);
+      setMetroOn(true);
+    }
+  };
+
   const handleLoginName = async () => {
     const trimmedName = loginName.trim();
     if (!trimmedName) { setLoginError("名前を入力してください"); return; }
@@ -1118,20 +1194,20 @@ function SanshinApp() {
           {/* 今日の日付と直近イベント */}
           <div style={{textAlign:"center",marginBottom:8}}>
             <div style={{color:"rgba(255,255,255,0.9)",fontSize:13}}>
-              {new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}
+              今日は{new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"short"})}です🌺
             </div>
             {events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0] && (() => {
               const ev = events.filter(ev=>ev.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date))[0];
+              const d = new Date(ev.date);
+              const weekdays = ["日","月","火","水","木","金","土"];
+              const dateLabel = `${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
               return (
                 <div style={{marginTop:6,background:"rgba(255,140,0,0.4)",border:"1px solid rgba(255,140,0,0.7)",borderRadius:8,padding:"8px 12px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:14}}>📣</span>
-                    <span style={{color:"#f0c040",fontSize:12,fontWeight:"bold"}}>直近のイベント</span>
+                    <span style={{color:"#fff",fontSize:13,fontWeight:"bold"}}>{dateLabel} {ev.title}</span>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{color:"#fff",fontSize:13,fontWeight:"bold"}}>{ev.title}</span>
-                    <span style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>{ev.date}{ev.time && `　🕐 ${ev.time}`}</span>
-                  </div>
+                  {ev.time && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:4}}>🕐 {ev.time}</div>}
                   {ev.place && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:2}}>📍 {ev.place}</div>}
                 </div>
               );
@@ -1221,16 +1297,20 @@ function SanshinApp() {
               </div>
             </div>
           </div>
-          {nextEvent && (
-            <div style={{...S.eventBadge,cursor:"pointer"}} onClick={()=>setTab("events")}>
-              <style>{`@keyframes ring{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-15deg)}40%{transform:rotate(15deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(10deg)}}`}</style>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:12}}>📣</span>
-                <span style={S.eventBadgeTitle}>{nextEvent.date}</span>
+          {nextEvent && (() => {
+            const d = new Date(nextEvent.date);
+            const weekdays = ["日","月","火","水","木","金","土"];
+            const dateLabel = `${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
+            return (
+              <div style={{...S.eventBadge,cursor:"pointer"}} onClick={()=>setTab("events")}>
+                <style>{`@keyframes ring{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-15deg)}40%{transform:rotate(15deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(10deg)}}`}</style>
+                <div style={{display:"flex",alignItems:"center",gap:4,justifyContent:"flex-end"}}>
+                  <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:12}}>📣</span>
+                  <span style={S.eventBadgeSub}>{dateLabel} {nextEvent.title}</span>
+                </div>
               </div>
-              <span style={S.eventBadgeSub}>{nextEvent.title}</span>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </header>
 
@@ -1387,11 +1467,11 @@ function SanshinApp() {
               <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>🔎 曲目検索</h2>
               <div style={{display:"flex",gap:6}}>
                 <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
-                  style={{background:C.teal,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
                   📄 工工四
                 </a>
                 <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
-                  style={{background:C.gold,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
                   🎵 音源
                 </a>
               </div>
@@ -1400,17 +1480,19 @@ function SanshinApp() {
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               <button
                 style={{...S.btn,fontSize:11,padding:"6px 10px",
-                  background:searchMode==="vote"?C.accent:"transparent",
-                  color:searchMode==="vote"?"#fff":C.accent,
-                  border:`1px solid ${C.accent}`}}
+                  background:"#f4c9d2",
+                  color:"#7a3040",
+                  border:"1px solid #f4c9d2",
+                  opacity:searchMode==="vote"?1:0.6}}
                 onClick={()=>{setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}>
-                🏆 人気投票TOP20
+                🏆 人気投票
               </button>
               <button
                 style={{...S.btn,fontSize:11,padding:"6px 10px",
-                  background:searchMode==="award"?C.gold:"transparent",
-                  color:searchMode==="award"?"#fff":C.gold,
-                  border:`1px solid ${C.gold}`}}
+                  background:"#f0dca0",
+                  color:"#6b5418",
+                  border:"1px solid #f0dca0",
+                  opacity:searchMode==="award"?1:0.6}}
                 onClick={()=>{setSearchMode("award");setSearchQuery("");setSearchRange(null);}}>
                 🥇 受賞実績
               </button>
@@ -1478,7 +1560,7 @@ function SanshinApp() {
                   .slice(0, 20);
                 return (
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <div style={{fontSize:12,color:C.sub}}>🏆 人気投票TOP20</div>
+                    <div style={{fontSize:12,color:C.sub}}>🏆 人気投票</div>
                     {voted.length === 0
                       ? <div style={S.empty}>まだ投票データがありません</div>
                       : voted.map(({num, info, votes}, idx) => {
@@ -1675,12 +1757,16 @@ function SanshinApp() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
               <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>練習指南</h2>
               <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>setShowChindami(!showChindami)}
+                  style={{background:showChindami?C.gold:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,border:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>
+                  🎼 ちんだみ
+                </button>
                 <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
-                  style={{background:C.teal,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
                   📄 工工四
                 </a>
                 <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
-                  style={{background:C.gold,color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
                   🎵 音源
                 </a>
                 <a href="https://zoom.us/j/2950376039" target="_blank" rel="noreferrer"
@@ -1690,6 +1776,54 @@ function SanshinApp() {
               </div>
             </div>
 
+            {/* チューナー・メトロノーム */}
+            {showChindami && (
+            <div style={S.adviceCard}>
+              <div style={S.adviceHeader}>🎼 ちんだみ・メトロノーム（音準備中）</div>
+              <div style={{marginTop:8}}>
+                
+                <div style={{display:"flex",gap:6,marginBottom:12}}>
+                  {["本調子","二上げ","三下げ"].map(m=>(
+                    <button key={m} style={{...S.btn,fontSize:12,padding:"6px 12px",flex:1,
+                      background:chindamiMode===m?C.teal:"transparent",
+                      color:chindamiMode===m?"#fff":C.sub,
+                      border:`1px solid ${chindamiMode===m?C.teal:C.border}`}}
+                      onClick={()=>setChindamiMode(m)}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{display:"flex",gap:6,marginBottom:16}}>
+                  {["A#","B","C"].map(note=>(
+                    <button key={note} style={{...S.btn,fontSize:12,padding:"6px 12px",flex:1,
+                      background:playingString===note?C.gold:"transparent",
+                      color:playingString===note?"#fff":C.sub,
+                      border:`1px solid ${playingString===note?C.gold:C.border}`}}
+                      onClick={()=>handlePlayString(note)}>
+                      ▶️ {note}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+                  
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{fontSize:13,fontWeight:"bold",color:C.teal,whiteSpace:"nowrap"}}>{bpm} BPM</div>
+                    <input type="range" min="40" max="160" value={bpm}
+                      onChange={e=>setBpm(parseInt(e.target.value))}
+                      style={{flex:1}}/>
+                    <button style={{...S.btn,padding:"8px 16px",
+                      background:metroOn?C.accent:C.teal,color:"#fff",fontWeight:"bold",whiteSpace:"nowrap"}}
+                      onClick={toggleMetronome}>
+                      {metroOn ? "⏹ 停止" : "▶️ 開始"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+
             {diary.length===0
               ? <div style={S.empty}>お稽古履歴がありません。</div>
               : <>
@@ -1698,7 +1832,7 @@ function SanshinApp() {
                 {/* 次週練習候補 */}
                 <div style={S.adviceCard}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <div style={S.adviceHeader}>🔁 次回練習候補</div>
+                    <div style={S.adviceHeader}>🔁 次回練習候補（{latestSession ? latestSession.date.slice(5).replace("-","/") : "---"}実績）</div>
                     <button style={{...S.taruBtn,background:textCopied?C.teal:"transparent",color:textCopied?"#fff":C.teal,border:`1px solid ${C.teal}`,transition:"all 0.2s"}}
                       onClick={()=>{
                         const tmpl=generateTemplate(latestSession);
@@ -1711,7 +1845,6 @@ function SanshinApp() {
                       {textCopied?"✅ コピー済":"📋 日誌に使う"}
                     </button>
                   </div>
-                  {latestSession && <div style={{fontSize:11,color:C.sub,marginBottom:6}}>📅 {latestSession.date}</div>}
                   <div style={S.groupLabel}>🪸 着物組</div>
                   {recKimono.length===0
                     ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
@@ -2216,7 +2349,7 @@ const S = {
   logoSub:{color:"rgba(255,255,255,0.7)",fontSize:11},
   eventBadge:{background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px",textAlign:"right"},
   eventBadgeTitle:{display:"block",color:"#f0c040",fontSize:12,fontWeight:"bold"},
-  eventBadgeSub:{display:"block",color:"rgba(255,255,255,0.9)",fontSize:10},
+  eventBadgeSub:{display:"block",color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:"bold"},
   nav:{display:"flex",background:C.paper,borderBottom:`2px solid ${C.border}`},
   tab:{flex:1,padding:"12px 4px",border:"none",background:"transparent",color:C.sub,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"},
   tabActive:{color:C.teal,borderBottom:`3px solid ${C.teal}`,fontWeight:"bold",background:C.tealLight},
