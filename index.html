@@ -1754,8 +1754,7 @@ function SanshinApp() {
         {/* ── 練習指南 ── */}
         {tab==="advice" && (
           <div style={S.section}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
-              <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>練習指南</h2>
+            <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
               <div style={{display:"flex",gap:6}}>
                 <button onClick={()=>setShowChindami(!showChindami)}
                   style={{background:showChindami?C.gold:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,border:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>
