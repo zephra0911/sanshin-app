@@ -1207,8 +1207,13 @@ function SanshinApp() {
                     <span style={{display:"inline-block",animation:"ring 1.5s ease-in-out infinite",fontSize:14}}>📣</span>
                     <span style={{color:"#fff",fontSize:13,fontWeight:"bold"}}>{dateLabel} {ev.title}</span>
                   </div>
-                  {ev.time && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:4}}>🕐 {ev.time}</div>}
-                  {ev.place && <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:2}}>📍 {ev.place}</div>}
+                  {(ev.time || ev.place) && (
+                    <div style={{color:"rgba(255,255,255,0.8)",fontSize:11,marginTop:4}}>
+                      {ev.time && <span>🕐 {ev.time}</span>}
+                      {ev.time && ev.place && <span>　</span>}
+                      {ev.place && <span>📍 {ev.place}</span>}
+                    </div>
+                  )}
                 </div>
               );
             })()}
