@@ -618,6 +618,12 @@ function gasSaveSongInfo(info) {
   return fetch(url).then(function(r){ return r.json(); });
 }
 
+function gasSaveMyMarks(marksStr) {
+  if (!IS_PRODUCTION) return Promise.resolve({ success: true });
+  return fetch(GAS_URL + "?action=saveMyMarks&marks=" + encodeURIComponent(marksStr) + "&token=" + encodeURIComponent(_authToken || ""))
+    .then(function(r){ return r.json(); });
+}
+
 function gasPost(action, data) {
   if (!IS_PRODUCTION) return Promise.resolve({ success: true, skipped: true });
   var key = action === "saveDiary" ? "diary"
@@ -705,6 +711,11 @@ function SanshinApp() {
   const [songInfoSaving, setSongInfoSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showChindami, setShowChindami] = useState(false);
+  const [myMarks, setMyMarksState] = useState(new Set());
+  const setMyMarks = (next) => {
+    setMyMarksState(next);
+    gasSaveMyMarks(Array.from(next).join(",")).catch(e => console.error("マーク保存エラー:", e));
+  };
   const [chindamiMode, setChindamiMode] = useState("本調子");
   const [playingString, setPlayingString] = useState(null);
   const [metroOn, setMetroOn] = useState(false);
@@ -807,6 +818,10 @@ function SanshinApp() {
         // 権限をセット（GASから取得、未設定は利用者）
         setUserRole(result.role || "利用者");
         setAuthToken(result.token || null);
+        // マーク曲を読み込み
+        if (result.myMarks) {
+          setMyMarks(new Set(result.myMarks.split(",").filter(Boolean)));
+        }
         // 既存ユーザー：クイズへ
         const keys = Object.keys(SONG_DB);
         const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
@@ -1321,7 +1336,7 @@ function SanshinApp() {
 
       {/* ナビ */}
       <nav style={S.nav}>
-        {[["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
+        {[["my","⭐ My"],["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
           <button key={id} onClick={()=>{setTab(id);if(id==="search"){setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}}
             style={{...S.tab,...(tab===id?S.tabActive:{})}}>
             {label}
@@ -1681,6 +1696,47 @@ function SanshinApp() {
           </div>
         )}
 
+        {/* ── My（お気に入り） ── */}
+        {tab==="my" && (
+          <div style={S.section}>
+            <h2 style={S.sectionTitle}>⭐ My 曲リスト</h2>
+            {myMarks.size === 0
+              ? <div style={S.empty}>まだマークした曲がありません。<br/>検索や曲情報から⭐をタップして追加してください。</div>
+              : (
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <div style={{fontSize:12,color:C.sub}}>{myMarks.size}曲</div>
+                  {Array.from(myMarks).sort((a,b)=>a.localeCompare(b)).map(num => {
+                    const info = songDB[num];
+                    if (!info) return null;
+                    const stat = songStats[num];
+                    return (
+                      <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.gold}`,padding:"10px 12px"}}>
+                        <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
+                          onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>
+                          {num}
+                        </span>
+                        <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
+                        {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
+                        <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                        {info.audioUrl
+                          ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                          : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                        }
+                        <button
+                          onClick={()=>{const next=new Set(myMarks);next.delete(num);setMyMarks(next);}}
+                          style={{background:"none",border:"none",fontSize:18,cursor:"pointer",padding:"0 4px"}}>
+                          ⭐
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            }
+          </div>
+        )}
+
         {/* ── イベント ── */}
         {tab==="events" && (
           <div style={S.section}>
@@ -2008,7 +2064,19 @@ function SanshinApp() {
       {songInfoModal && songInfoEdit && (
         <div style={S.modalOverlay} onClick={()=>setSongInfoModal(null)}>
           <div style={{...S.modalBox,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={S.modalTitle}>📋 曲情報：{songInfoModal.number} {songInfoModal.title}</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={S.modalTitle}>📋 曲情報：{songInfoModal.number} {songInfoModal.title}</div>
+              <button
+                onClick={()=>{
+                  const next = new Set(myMarks);
+                  if (next.has(songInfoModal.number)) next.delete(songInfoModal.number);
+                  else next.add(songInfoModal.number);
+                  setMyMarks(next);
+                }}
+                style={{background:"none",border:"none",fontSize:24,cursor:"pointer",padding:"0 4px",lineHeight:1}}>
+                {myMarks.has(songInfoModal.number) ? "⭐" : "☆"}
+              </button>
+            </div>
 
             {/* 練習期間・回数 */}
             {(songInfoModal?.firstDate || songInfoModal?.lastDate || songStats[songInfoModal?.number]) && (
