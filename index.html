@@ -1239,7 +1239,7 @@ function SanshinApp() {
             {/* 名前入力 */}
             {loginStep === "name" && (
               <>
-                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>どなたですか？</div>
+                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>だーやいびーが？</div>
                 <input type="text" style={S.dateInput} placeholder="お名前を入力してください"
                   value={loginName} onChange={e=>setLoginName(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&handleLoginName()}/>
@@ -1700,6 +1700,7 @@ function SanshinApp() {
         {tab==="my" && (
           <div style={S.section}>
             <h2 style={S.sectionTitle}>⭐ My 曲リスト</h2>
+            <p style={{...S.hint,textAlign:"right"}}>⭐をタップするとリストから解除されます。</p>
             {myMarks.size === 0
               ? <div style={S.empty}>まだマークした曲がありません。<br/>検索や曲情報から⭐をタップして追加してください。</div>
               : (
