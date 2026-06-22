@@ -820,7 +820,7 @@ function SanshinApp() {
         setAuthToken(result.token || null);
         // マーク曲を読み込み
         if (result.myMarks) {
-          setMyMarks(new Set(result.myMarks.split(",").filter(Boolean)));
+          setMyMarksState(new Set(result.myMarks.split(",").filter(Boolean)));
         }
         // 既存ユーザー：クイズへ
         const keys = Object.keys(SONG_DB);
