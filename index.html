@@ -914,13 +914,12 @@ function SanshinApp() {
       if (IS_PRODUCTION) {
         // GitHub Pages: スプレッドシートから読み込む
         try {
-          const [diaryData, eventsData, importData, songsData, awardData] = await Promise.all([
-            gasGet("getDiary"),
-            gasGet("getEvents"),
-            gasGet("getImport"),
-            gasGet("getSongs"),
-            gasGet("getAwardHistory"),
-          ]);
+          const initData = await gasGet("getAllInitData");
+          const diaryData = initData.diary;
+          const eventsData = initData.events;
+          const importData = initData.importResult;
+          const songsData = initData.songs;
+          const awardData = initData.awardHistory;
           if (awardData && Object.keys(awardData).length > 0) setAwardHistory(awardData);
           // 曲マスタをSONG_DBに反映
           if (songsData && Object.keys(songsData).length > 0) {
@@ -948,17 +947,17 @@ function SanshinApp() {
     setGasSyncing(true);
     setGasStatus("");
     try {
-      const [diaryData, eventsData, importData] = await Promise.all([
-        gasGet("getDiary"),
-        gasGet("getEvents"),
-        gasGet("getImport"),
-      ]);
+      const initData = await gasGet("getAllInitData");
+      const diaryData = initData.diary;
+      const eventsData = initData.events;
+      const importData = initData.importResult;
+      const songsData2 = initData.songs;
+      const awardData2 = initData.awardHistory;
       if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); }
       if (Array.isArray(eventsData) && eventsData.length > 0) { setEvents(eventsData); }
       if (importData) { setImportResult(importData); }
-      // 曲マスタも再読み込み
-      const songsData2 = await gasGet("getSongs");
       if (songsData2 && Object.keys(songsData2).length > 0) { SONG_DB = songsData2; setSongDB(songsData2); }
+      if (awardData2 && Object.keys(awardData2).length > 0) { setAwardHistory(awardData2); }
       setGasStatus(`✅ 読み込み完了（日誌${Array.isArray(diaryData)?diaryData.length:0}回）`);
     } catch(e) {
       setGasStatus(`❌ 読み込み失敗: ${e.message}`);
