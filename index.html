@@ -880,7 +880,7 @@ function SanshinApp() {
   // ── 起動時自動読み込み ───────────────────────────────
   const [gasLoading, setGasLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     (async () => {
       if (IS_PRODUCTION) {
         // GitHub Pages: スプレッドシートから読み込む
@@ -912,7 +912,7 @@ function SanshinApp() {
       }
       setGasLoading(false);
     })();
-  });
+  }, []);
 
   // ── GAS連携 ──────────────────────────────────────────
   const handleLoadFromGAS = async () => {
