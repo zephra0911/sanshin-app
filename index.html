@@ -669,6 +669,10 @@ const C = {
 function SanshinApp() {
   // ── ログイン ──────────────────────────────────────────
   const [loginStep, setLoginStep] = useState("name");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [quizPreparing, setQuizPreparing] = useState(false);
+  const [loginBtnPressed, setLoginBtnPressed] = useState(false);
+  const loginSubmittingRef = useRef(false);
   const [userRole, setUserRole] = useState("利用者"); // 利用者・編集者・管理者
   const [authToken, setAuthTokenState] = useState(null);
   const setAuthToken = (t) => { _authToken = t; setAuthTokenState(t); };
@@ -808,10 +812,22 @@ function SanshinApp() {
     }
   };
 
+  // gasLoadingがfalseになるまで待つ（タイムアウト付き）
+  const waitForDataReady = async (timeoutMs = 8000) => {
+    const start = Date.now();
+    while (gasLoadingRef.current && (Date.now() - start) < timeoutMs) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+  };
+
   const handleLoginName = async () => {
+    if (loginSubmittingRef.current) return; // 二重送信防止（refで即時判定）
+    loginSubmittingRef.current = true;
     const trimmedName = loginName.trim();
-    if (!trimmedName) { setLoginError("名前を入力してください"); return; }
+    if (!trimmedName) { setLoginError("名前を入力してください"); loginSubmittingRef.current = false; return; }
     setLoginError("");
+    setLoginSubmitting(true);
+    try {
     if (IS_PRODUCTION) {
       const result = await gasCheckUser(trimmedName);
       setIsNewUser(!result.exists);
@@ -826,6 +842,13 @@ function SanshinApp() {
         // マーク曲を読み込み
         if (result.myMarks) {
           setMyMarksState(new Set(result.myMarks.split(",").filter(Boolean)));
+        }
+        // 曲データの読み込み完了を待つ（クイズに必要なため）
+        setLoginError("");
+        if (gasLoadingRef.current) {
+          setQuizPreparing(true);
+          await waitForDataReady();
+          setQuizPreparing(false);
         }
         // 既存ユーザー：クイズへ
         const keys = Object.keys(SONG_DB);
@@ -848,6 +871,10 @@ function SanshinApp() {
       setQuizSongs(shuffled.map(k => ({ number: k, title: SONG_DB_DEFAULT[k].title })));
       setSelectedSongs([]);
       setLoginStep("quiz");
+    }
+    } finally {
+      setLoginSubmitting(false);
+      loginSubmittingRef.current = false;
     }
   };
 
@@ -879,6 +906,8 @@ function SanshinApp() {
 
   // ── 起動時自動読み込み ───────────────────────────────
   const [gasLoading, setGasLoading] = useState(true);
+  const gasLoadingRef = useRef(true);
+  useEffect(() => { gasLoadingRef.current = gasLoading; }, [gasLoading]);
 
   useEffect(() => {
     (async () => {
@@ -1251,7 +1280,19 @@ function SanshinApp() {
                   value={loginName} onChange={e=>setLoginName(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&handleLoginName()}/>
                 {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
-                <button style={{...S.btn,...S.btnPrimary}} onClick={handleLoginName}>ログイン</button>
+                <button style={{...S.btn,...S.btnPrimary,
+                    opacity:loginSubmitting?0.6:1,
+                    background:loginBtnPressed?C.gold:C.teal,
+                    transition:"background 0.1s",
+                    pointerEvents:loginSubmitting?"none":"auto"}}
+                  onMouseDown={()=>!loginSubmitting&&setLoginBtnPressed(true)}
+                  onMouseUp={()=>setLoginBtnPressed(false)}
+                  onMouseLeave={()=>setLoginBtnPressed(false)}
+                  onTouchStart={()=>!loginSubmitting&&setLoginBtnPressed(true)}
+                  onTouchEnd={()=>setLoginBtnPressed(false)}
+                  onClick={handleLoginName} disabled={loginSubmitting}>
+                  {quizPreparing ? "⏳ 曲データを準備中..." : loginSubmitting ? "⏳ 確認中..." : "ログイン"}
+                </button>
               </>
             )}
 
