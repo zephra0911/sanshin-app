@@ -584,10 +584,15 @@ async function gasUpdateSession(session) {
   await gasAppendSessions([session]);
 }
 
-function gasCheckUser(name) {
+function gasCheckUser(name, retried) {
   if (!IS_PRODUCTION) return Promise.resolve({ exists: true });
   return gasGet("checkUser&name=" + encodeURIComponent(name))
-    .catch(function(e){ console.error("checkUser error:", e); return { exists: false }; });
+    .catch(function(e){
+      console.error("checkUser error:", e);
+      // 初回失敗時は1回だけリトライ（GASのコールドスタート対策）
+      if (!retried) return gasCheckUser(name, true);
+      return { exists: false };
+    });
 }
 
 function gasRegisterUser(name) {
