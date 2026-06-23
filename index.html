@@ -1192,15 +1192,15 @@ function SanshinApp() {
 
   return (
     <div id="app-scroll" style={{...S.app,overflowY:"auto",height:"100vh"}}>
-      {gasLoading && (
-        <div style={{position:"fixed",inset:0,background:"rgba(255,255,255,0.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:999}}>
-          <div style={{fontSize:32,marginBottom:12}}>結</div>
-          <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>読み込み中...</div>
+      {/* ログイン完了後、まだデータ取得中なら軽量インジケーターを表示 */}
+      {loginStep === "done" && gasLoading && (
+        <div style={{position:"fixed",top:8,right:8,background:"rgba(26,107,90,0.9)",color:"#fff",fontSize:11,padding:"4px 10px",borderRadius:12,zIndex:997}}>
+          ⏳ データ同期中...
         </div>
       )}
 
-      {/* ── ログインモーダル ── */}
-      {!gasLoading && loginStep !== "done" && (
+      {/* ── ログインモーダル（データ読み込み中も即表示） ── */}
+      {loginStep !== "done" && (
         <div style={{position:"fixed",inset:0,background:"rgba(26,107,90,0.95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:998,padding:24}}>
           <div style={{fontSize:40,color:"#f0c040",marginBottom:8,fontFamily:"'Hiragino Sans','Yu Gothic',sans-serif",fontWeight:"bold"}}>ス</div>
           <div style={{color:"#fff",fontSize:16,fontWeight:"bold",marginBottom:4}}>結の会スージー三線教室</div>
