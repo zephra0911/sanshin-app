@@ -396,6 +396,18 @@ const SONG_DB_DEFAULT = {
   "221-2":{"title":"ぼすぽう"}
 };
 let SONG_DB = {...SONG_DB_DEFAULT};
+// キャッシュがあれば即座に反映（ページ読み込み時、コンポーネント初期化前）
+if (typeof location !== "undefined" && location.hostname === "zephra0911.github.io") {
+  try {
+    const raw = localStorage.getItem("sanshin_songs_cache");
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (Date.now() - cached.timestamp <= 7 * 24 * 60 * 60 * 1000 && cached.data) {
+        SONG_DB = cached.data;
+      }
+    }
+  } catch(e) {}
+}
 
 // ── アヤメ会（最終日曜日） ────────────────────────────
 function lastSunday(year, month) {
@@ -543,6 +555,26 @@ async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+// ── 曲マスタのキャッシュ（localStorage・1週間有効） ───
+const SONGS_CACHE_KEY = "sanshin_songs_cache";
+const SONGS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 1週間
+
+function getSongsFromCache() {
+  try {
+    const raw = localStorage.getItem(SONGS_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (Date.now() - cached.timestamp > SONGS_CACHE_TTL) return null;
+    return cached.data;
+  } catch(e) { return null; }
+}
+
+function saveSongsToCache(data) {
+  try {
+    localStorage.setItem(SONGS_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch(e) { console.error("曲マスタキャッシュ保存エラー:", e); }
 }
 
 async function gasSaveSong(number, title) {
@@ -694,7 +726,7 @@ function SanshinApp() {
   const [isNewUser, setIsNewUser] = useState(false);
 
   const [tab, setTab] = useState("advice");
-  const [songDB, setSongDB] = useState(SONG_DB_DEFAULT);
+  const [songDB, setSongDB] = useState(SONG_DB); // SONG_DBはキャッシュ済みの可能性あり
   const [awardHistory, setAwardHistory] = useState(
     IS_PRODUCTION ? {} : {
       "001": { "最高賞": [{name:"鈴木花子",date:"2024-03-15"},{name:"田中太郎",date:"2024-03-15"}] },
@@ -930,10 +962,11 @@ function SanshinApp() {
           const songsData = initData.songs;
           const awardData = initData.awardHistory;
           if (awardData && Object.keys(awardData).length > 0) setAwardHistory(awardData);
-          // 曲マスタをSONG_DBに反映
+          // 曲マスタをSONG_DBに反映＆キャッシュ更新
           if (songsData && Object.keys(songsData).length > 0) {
             SONG_DB = songsData;
             setSongDB(songsData);
+            saveSongsToCache(songsData);
           }
           // GitHub Pages: シートのデータのみ使用（ハードコードは使わない）
           if (Array.isArray(diaryData) && diaryData.length > 0) setDiary(diaryData);
@@ -965,7 +998,7 @@ function SanshinApp() {
       if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); }
       if (Array.isArray(eventsData) && eventsData.length > 0) { setEvents(eventsData); }
       if (importData) { setImportResult(importData); }
-      if (songsData2 && Object.keys(songsData2).length > 0) { SONG_DB = songsData2; setSongDB(songsData2); }
+      if (songsData2 && Object.keys(songsData2).length > 0) { SONG_DB = songsData2; setSongDB(songsData2); saveSongsToCache(songsData2); }
       if (awardData2 && Object.keys(awardData2).length > 0) { setAwardHistory(awardData2); }
       setGasStatus(`✅ 読み込み完了（日誌${Array.isArray(diaryData)?diaryData.length:0}回）`);
     } catch(e) {
