@@ -577,6 +577,23 @@ function saveSongsToCache(data) {
   } catch(e) { console.error("曲マスタキャッシュ保存エラー:", e); }
 }
 
+// ── 日誌のキャッシュ（表示の初期値のみ。常にバックグラウンドで最新化） ──
+const DIARY_CACHE_KEY = "sanshin_diary_cache";
+
+function getDiaryFromCache() {
+  try {
+    const raw = localStorage.getItem(DIARY_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function saveDiaryToCache(data) {
+  try {
+    localStorage.setItem(DIARY_CACHE_KEY, JSON.stringify(data));
+  } catch(e) { console.error("日誌キャッシュ保存エラー:", e); }
+}
+
 async function gasSaveSong(number, title) {
   if (!IS_PRODUCTION) return;
   const params = new URLSearchParams({
@@ -736,7 +753,7 @@ function SanshinApp() {
       "096": { "新人賞": [{name:"渡辺五郎",date:"2026-02-14"}] },
     }
   );
-  const [diary, setDiary] = useState([]);
+  const [diary, setDiary] = useState(() => getDiaryFromCache() || []);
   const [events, setEvents] = useState(BASE_EVENTS);
 
   // 日誌入力
@@ -969,7 +986,7 @@ function SanshinApp() {
             saveSongsToCache(songsData);
           }
           // GitHub Pages: シートのデータのみ使用（ハードコードは使わない）
-          if (Array.isArray(diaryData) && diaryData.length > 0) setDiary(diaryData);
+          if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); saveDiaryToCache(diaryData); }
           if (Array.isArray(eventsData) && eventsData.length > 0) setEvents(eventsData);
           if (importData) setImportResult(importData);
         } catch(e) {
@@ -995,7 +1012,7 @@ function SanshinApp() {
       const importData = initData.importResult;
       const songsData2 = initData.songs;
       const awardData2 = initData.awardHistory;
-      if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); }
+      if (Array.isArray(diaryData) && diaryData.length > 0) { setDiary(diaryData); saveDiaryToCache(diaryData); }
       if (Array.isArray(eventsData) && eventsData.length > 0) { setEvents(eventsData); }
       if (importData) { setImportResult(importData); }
       if (songsData2 && Object.keys(songsData2).length > 0) { SONG_DB = songsData2; setSongDB(songsData2); saveSongsToCache(songsData2); }
@@ -1053,6 +1070,7 @@ function SanshinApp() {
     }
     next = next.sort((a,b) => b.date.localeCompare(a.date));
     setDiary(next);
+    saveDiaryToCache(next);
     setParseResults([]); setLineText(""); setTab("history");
     // 新規セッションのみ追記
     gasAppendSessions(parseResults).catch(e => console.error("GAS追記エラー:", e));
@@ -1062,6 +1080,7 @@ function SanshinApp() {
   const handleDeleteDiary = (date) => {
     const next = diary.filter(d => d.date !== date);
     setDiary(next);
+    saveDiaryToCache(next);
     setSelectedEntry(null); setConfirmDeleteDate(null);
     gasDeleteSession(date).catch(e => console.error("GAS削除エラー:", e));
   };
@@ -1074,6 +1093,7 @@ function SanshinApp() {
       .concat([{date: editingDiary.date, songs: editingDiary.songs}])
       .sort((a,b) => b.date.localeCompare(a.date));
     setDiary(next);
+    saveDiaryToCache(next);
     setEditingDiary(null);
     // 元の日付で削除→新しい日付で追記
     if (editingDiary._originalDate && editingDiary._originalDate !== editingDiary.date) {
