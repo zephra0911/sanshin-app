@@ -649,24 +649,9 @@ function gasRegisterUser(name) {
   return fetch(GAS_URL + "?action=registerUser&name=" + encodeURIComponent(name));
 }
 
-function gasVoteSongs(nums) {
-  if (!IS_PRODUCTION) return Promise.resolve();
-  return fetch(GAS_URL + "?action=voteSongs&nums=" + encodeURIComponent(JSON.stringify(nums)));
-}
-
 function gasLoginCountUp(name) {
   if (!IS_PRODUCTION) return Promise.resolve();
   return fetch(GAS_URL + "?action=loginCountUp&name=" + encodeURIComponent(name));
-}
-
-// ログイン完了処理（投票＋ログイン回数カウントを1回の通信にまとめる）
-function gasCompleteLogin(name, nums) {
-  if (!IS_PRODUCTION) return Promise.resolve();
-  let url = GAS_URL + "?action=completeLogin&name=" + encodeURIComponent(name);
-  if (nums && nums.length > 0) {
-    url += "&nums=" + encodeURIComponent(JSON.stringify(nums));
-  }
-  return fetch(url);
 }
 
 function gasSaveSongInfo(info) {
@@ -729,21 +714,24 @@ function SanshinApp() {
   // ── ログイン ──────────────────────────────────────────
   const [loginStep, setLoginStep] = useState("name");
   const [loginSubmitting, setLoginSubmitting] = useState(false);
-  const [quizPreparing, setQuizPreparing] = useState(false);
   const [loginBtnPressed, setLoginBtnPressed] = useState(false);
   const loginSubmittingRef = useRef(false);
-  const [userRole, setUserRole] = useState("利用者"); // 利用者・編集者・管理者
+  const [userRole, setUserRole] = useState("利用者");
+  const [lastLoginDate, setLastLoginDate] = useState(IS_PRODUCTION ? null : "2026-06-28"); // 利用者・編集者・管理者
   const [authToken, setAuthTokenState] = useState(null);
   const setAuthToken = (t) => { _authToken = t; setAuthTokenState(t); };
   const [loginName, setLoginName] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [quizSongs, setQuizSongs] = useState([]);
-  const [selectedSongs, setSelectedSongs] = useState([]);
   const [isNewUser, setIsNewUser] = useState(false);
 
   const [tab, setTab] = useState("advice");
   const [songDB, setSongDB] = useState(SONG_DB); // SONG_DBはキャッシュ済みの可能性あり
+  const [links, setLinks] = useState([
+    { name: "📄 工工四", url: "https://bit.ly/2026kk4", desc: "工工四PDF" },
+    { name: "🎵 音源", url: "https://bit.ly/ongen11", desc: "音源フォルダ" },
+    { name: "🎥 ZOOM", url: "https://zoom.us/j/2950376039", desc: "お稽古ZOOM" },
+  ]);
   const [awardHistory, setAwardHistory] = useState(
     IS_PRODUCTION ? {} : {
       "001": { "最高賞": [{name:"鈴木花子",date:"2024-03-15"},{name:"田中太郎",date:"2024-03-15"}] },
@@ -791,7 +779,7 @@ function SanshinApp() {
   const audioCtxRef = useRef(null);
   const metroIntervalRef = useRef(null);
   const [searchRange, setSearchRange] = useState(null);
-  const [searchMode, setSearchMode] = useState("vote"); // vote | range | query
+  const [searchMode, setSearchMode] = useState("practice"); // vote | range | query
   const [exportText, setExportText] = useState("");
   const [exportCopied, setExportCopied] = useState(false);
   const [importText, setImportText] = useState("");
@@ -871,14 +859,6 @@ function SanshinApp() {
     }
   };
 
-  // gasLoadingがfalseになるまで待つ（タイムアウト付き）
-  const waitForDataReady = async (timeoutMs = 8000) => {
-    const start = Date.now();
-    while (gasLoadingRef.current && (Date.now() - start) < timeoutMs) {
-      await new Promise(r => setTimeout(r, 100));
-    }
-  };
-
   const handleLoginName = async () => {
     if (loginSubmittingRef.current) return; // 二重送信防止（refで即時判定）
     loginSubmittingRef.current = true;
@@ -902,19 +882,9 @@ function SanshinApp() {
         if (result.myMarks) {
           setMyMarksState(new Set(result.myMarks.split(",").filter(Boolean)));
         }
-        // 曲データの読み込み完了を待つ（クイズに必要なため）
-        setLoginError("");
-        if (gasLoadingRef.current) {
-          setQuizPreparing(true);
-          await waitForDataReady();
-          setQuizPreparing(false);
-        }
-        // 既存ユーザー：クイズへ
-        const keys = Object.keys(SONG_DB);
-        const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
-        setQuizSongs(shuffled.map(k => ({ number: k, title: SONG_DB[k].title })));
-        setSelectedSongs([]);
-        setLoginStep("quiz");
+        // 既存ユーザー：ログイン完了
+        gasLoginCountUp(trimmedName).catch(e => console.error("カウントエラー:", e));
+        setLoginStep("done");
       } else {
         // 新規ユーザー：パスワード入力へ
         setLoginStep("password");
@@ -925,11 +895,7 @@ function SanshinApp() {
       if (name === "admin") setUserRole("管理者");
       else if (name === "editor") setUserRole("編集者");
       else setUserRole("利用者");
-      const keys = Object.keys(SONG_DB_DEFAULT);
-      const shuffled = keys.sort(() => Math.random() - 0.5).slice(0, 5);
-      setQuizSongs(shuffled.map(k => ({ number: k, title: SONG_DB_DEFAULT[k].title })));
-      setSelectedSongs([]);
-      setLoginStep("quiz");
+      setLoginStep("done");
     }
     } finally {
       setLoginSubmitting(false);
@@ -948,19 +914,6 @@ function SanshinApp() {
     }
   };
 
-  const handleLoginQuiz = () => {
-    if (selectedSongs.length !== 2) { setLoginError("2曲選んでください"); return; }
-    gasCompleteLogin(loginName, selectedSongs).catch(e => console.error("ログイン完了処理エラー:", e));
-    setLoginStep("done");
-  };
-
-  const toggleSongSelect = (num) => {
-    setSelectedSongs(prev =>
-      prev.includes(num)
-        ? prev.filter(n => n !== num)
-        : prev.length < 2 ? [...prev, num] : prev
-    );
-  };
 
   // ── 起動時自動読み込み ───────────────────────────────
   const [gasLoading, setGasLoading] = useState(true);
@@ -979,6 +932,7 @@ function SanshinApp() {
           const songsData = initData.songs;
           const awardData = initData.awardHistory;
           if (awardData && Object.keys(awardData).length > 0) setAwardHistory(awardData);
+          if (Array.isArray(initData.links) && initData.links.length > 0) setLinks(initData.links);
           // 曲マスタをSONG_DBに反映＆キャッシュ更新
           if (songsData && Object.keys(songsData).length > 0) {
             SONG_DB = songsData;
@@ -1301,7 +1255,6 @@ function SanshinApp() {
         <div style={{position:"fixed",inset:0,background:"rgba(26,107,90,0.95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:998,padding:24}}>
           <div style={{fontSize:40,color:"#f0c040",marginBottom:8,fontFamily:"'Hiragino Sans','Yu Gothic',sans-serif",fontWeight:"bold"}}>ス</div>
           <div style={{color:"#fff",fontSize:16,fontWeight:"bold",marginBottom:4}}>結の会スージー三線教室</div>
-          <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:24}}>お稽古管理アプリ</div>
 
           {/* 今日の日付と直近イベント */}
           <div style={{textAlign:"center",marginBottom:8}}>
@@ -1352,7 +1305,7 @@ function SanshinApp() {
                   onTouchStart={()=>!loginSubmitting&&setLoginBtnPressed(true)}
                   onTouchEnd={()=>setLoginBtnPressed(false)}
                   onClick={handleLoginName} disabled={loginSubmitting}>
-                  {quizPreparing ? "⏳ 曲データを準備中..." : loginSubmitting ? "⏳ 確認中..." : "ログイン"}
+                  {loginSubmitting ? "⏳ 確認中..." : "ログイン"}
                 </button>
               </>
             )}
@@ -1371,35 +1324,6 @@ function SanshinApp() {
               </>
             )}
 
-            {/* 曲クイズ（既存ユーザー） */}
-            {loginStep === "quiz" && (
-              <>
-                <div style={{fontWeight:"bold",color:C.teal,fontSize:15}}>ハイサイ！{loginName}さん🎵</div>
-                <div style={{fontSize:13,color:C.text}}>この中で好きな曲はどれかな？<br/><span style={{fontSize:11,color:C.sub}}>2曲選んでください</span></div>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {quizSongs.map(s => (
-                    <div key={s.number}
-                      onClick={()=>toggleSongSelect(s.number)}
-                      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,border:`2px solid ${selectedSongs.includes(s.number)?C.teal:C.border}`,background:selectedSongs.includes(s.number)?C.tealLight:"#faf7f2",cursor:"pointer"}}>
-                      <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${selectedSongs.includes(s.number)?C.teal:C.border}`,background:selectedSongs.includes(s.number)?C.teal:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {selectedSongs.includes(s.number) && <span style={{color:"#fff",fontSize:12}}>✓</span>}
-                      </div>
-                      <span style={{fontSize:11,color:C.sub,minWidth:28}}>{s.number}</span>
-                      <span style={{fontSize:14,fontWeight:"500"}}>{s.title}</span>
-                    </div>
-                  ))}
-                </div>
-                {loginError && <div style={{fontSize:12,color:C.accent}}>{loginError}</div>}
-                <div style={{display:"flex",gap:8}}>
-                  <button style={{...S.btn,...S.btnGhost,flex:1}} onClick={()=>{gasCompleteLogin(loginName,null);setLoginStep("done");}}>
-                    SKIP
-                  </button>
-                  <button style={{...S.btn,...S.btnPrimary,flex:1,opacity:selectedSongs.length===2?1:0.5}} onClick={handleLoginQuiz}>
-                    投票 ({selectedSongs.length}/2)
-                  </button>
-                </div>
-              </>
-            )}
           </div>
           {/* 音源再生の注意書き */}
           <div style={{textAlign:"center",marginTop:8}}>
@@ -1414,17 +1338,7 @@ function SanshinApp() {
         <div style={S.headerInner}>
           <div style={S.logo}>
             <span style={S.logoMark}>ス</span>
-            <div>
-              <div style={S.logoTitle}>結の会スージー三線教室</div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={S.logoSub}>お稽古管理アプリ</div>
-                <span style={{fontSize:9,padding:"1px 6px",borderRadius:8,fontWeight:"bold",
-                  background:isAdmin?"#f0c040":canEdit?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.15)",
-                  color:isAdmin?"#1a6b5a":"rgba(255,255,255,0.9)"}}>
-                  {userRole}
-                </span>
-              </div>
-            </div>
+            <div style={S.logoTitle}>結の会スージー三線教室</div>
           </div>
           {nextEvent && (() => {
             const d = new Date(nextEvent.date);
@@ -1445,7 +1359,7 @@ function SanshinApp() {
 
       {/* ナビ */}
       <nav style={S.nav}>
-        {[["my","⭐ My"],["advice","🎵 練習指南"],["search","🔎 検索"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
+        {[["my","⭐ My"],["advice","🎵 練習"],["search","🔎 検索"],["links","🔗 リンク"],["events","📅 イベント"],["diary","📝 日誌"],["history","📚 履歴"]].map(([id,label])=>(
           <button key={id} onClick={()=>{setTab(id);if(id==="search"){setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}}
             style={{...S.tab,...(tab===id?S.tabActive:{})}}>
             {label}
@@ -1594,36 +1508,30 @@ function SanshinApp() {
           <div style={S.section}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
               <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0,margin:0}}>🔎 曲目検索</h2>
-              <div style={{display:"flex",gap:6}}>
-                <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
-                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
-                  📄 工工四
-                </a>
-                <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
-                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
-                  🎵 音源
-                </a>
-              </div>
             </div>
-            {/* 人気投票・受賞実績ボタン */}
+            {/* 練習回数・受賞実績・番号順ボタン */}
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               <button
                 style={{...S.btn,fontSize:11,padding:"6px 10px",
-                  background:"#f4c9d2",
-                  color:"#7a3040",
-                  border:"1px solid #f4c9d2",
-                  opacity:searchMode==="vote"?1:0.6}}
-                onClick={()=>{setSearchMode("vote");setSearchQuery("");setSearchRange(null);}}>
-                🏆 人気投票
+                  background:"#d4ecd4",color:"#2d6a2d",border:"1px solid #d4ecd4",
+                  opacity:searchMode==="practice"?1:0.6}}
+                onClick={()=>{setSearchMode("practice");setSearchQuery("");setSearchRange(null);}}>
+                🌸 練習回数（直近1年）
               </button>
               <button
                 style={{...S.btn,fontSize:11,padding:"6px 10px",
-                  background:"#f0dca0",
-                  color:"#6b5418",
-                  border:"1px solid #f0dca0",
+                  background:"#f0dca0",color:"#6b5418",border:"1px solid #f0dca0",
                   opacity:searchMode==="award"?1:0.6}}
                 onClick={()=>{setSearchMode("award");setSearchQuery("");setSearchRange(null);}}>
                 🥇 受賞実績
+              </button>
+              <button
+                style={{...S.btn,fontSize:11,padding:"6px 10px",
+                  background:searchMode==="range"?C.teal:"transparent",
+                  color:searchMode==="range"?"#fff":C.teal,
+                  border:`1px solid ${C.teal}`}}
+                onClick={()=>{setSearchMode("range");setSearchQuery("");setSearchRange([1,50]);}}>
+                🔢 番号順
               </button>
             </div>
             <input
@@ -1631,76 +1539,42 @@ function SanshinApp() {
               style={S.dateInput}
               placeholder="曲名または番号で検索..."
               value={searchQuery}
-              onChange={e=>{setSearchQuery(e.target.value);setSearchRange(null);setSearchMode(e.target.value?"query":"vote");}}
+              onChange={e=>{setSearchQuery(e.target.value);setSearchRange(null);setSearchMode(e.target.value?"query":"practice");}}
               autoFocus
             />
 
-            {/* 番号帯ボタン（50件刻みで自動生成） */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {(() => {
-                const maxNum = Math.max(...Object.keys(songDB).map(k => parseInt(k)||0).filter(n => n < 900));
-                const ranges = [];
-                for (let from = 1; from <= maxNum; from += 50) {
-                  const to = Math.min(from + 49, maxNum);
-                  ranges.push([from, to]);
-                }
-                const buttons = ranges.map(([from, to]) => (
-                  <button key={from}
-                    style={{...S.btn,fontSize:11,padding:"6px 10px",
-                      background:searchRange&&searchRange[0]===from?C.teal:"transparent",
-                      color:searchRange&&searchRange[0]===from?"#fff":C.teal,
-                      border:`1px solid ${C.teal}`}}
-                    onClick={()=>{
-                      setSearchRange(searchRange&&searchRange[0]===from?null:[from,to]);
-                      setSearchQuery("");
-                      setSearchMode(searchRange&&searchRange[0]===from?"vote":"range");
-                    }}>
-                    {String(from).padStart(3,"0")}〜{String(to).padStart(3,"0")}
-                  </button>
-                ));
-                // 999番の特殊曲が存在する場合はボタンを追加
-                const has999 = Object.keys(songDB).some(k => parseInt(k) >= 900);
-                if (has999) {
-                  buttons.push(
-                    <button key={999}
-                      style={{...S.btn,fontSize:11,padding:"6px 10px",
-                        background:searchRange&&searchRange[0]===999?C.teal:"transparent",
-                        color:searchRange&&searchRange[0]===999?"#fff":C.teal,
-                        border:`1px solid ${C.teal}`}}
-                      onClick={()=>{
-                        setSearchRange(searchRange&&searchRange[0]===999?null:[999,999]);
-                        setSearchQuery("");
-                        setSearchMode(searchRange&&searchRange[0]===999?"vote":"range");
-                      }}>
-                      999〜
-                    </button>
-                  );
-                }
-                return buttons;
-              })()}
-            </div>
+
             {(() => {
-              // 人気投票TOP20
-              if (searchMode === "vote") {
-                const voted = Object.entries(songDB)
-                  .map(([num, info]) => ({ num, info, votes: info.votes || 0 }))
-                  .filter(x => x.votes > 0)
-                  .sort((a,b) => b.votes - a.votes)
-                  .slice(0, 20);
+              // 練習回数（直近1年）
+              if (searchMode === "practice") {
+                const oneYearAgo = new Date();
+                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+                const oneYearAgoStr = oneYearAgo.toISOString().slice(0,10);
+                const recentStats = {};
+                diary.filter(d => d.date >= oneYearAgoStr).forEach(d => {
+                  d.songs?.forEach(s => {
+                    if (!recentStats[s.number]) recentStats[s.number] = {title:s.title, count:0};
+                    recentStats[s.number].count++;
+                  });
+                });
+                const maxCount = Math.max(...Object.values(recentStats).map(s=>s.count), 1);
+                const sorted = Object.entries(recentStats).sort((a,b)=>b[1].count-a[1].count);
                 return (
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <div style={{fontSize:12,color:C.sub}}>🏆 人気投票</div>
-                    {voted.length === 0
-                      ? <div style={S.empty}>まだ投票データがありません</div>
-                      : voted.map(({num, info, votes}, idx) => {
-                          const stat = songStats[num];
+                    <div style={{fontSize:12,color:C.sub}}>🌸 練習回数（直近1年）{sorted.length}曲</div>
+                    {sorted.length === 0
+                      ? <div style={S.empty}>直近1年の練習記録がありません</div>
+                      : sorted.map(([num, info]) => {
+                          const db = songDB[num];
                           return (
-                            <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.accent}`,padding:"10px 12px"}}>
-                              <span style={{fontSize:13,fontWeight:"bold",color:idx<3?C.accent:C.sub,minWidth:24}}>#{idx+1}</span>
+                            <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                               <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                                onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
-                              <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
-                              <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>❤️{votes}</span>
+                                onClick={()=>{if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||""});}}}>{num}</span>
+                              <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(db?.chindami)}</span>
+                              <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{info.count}回</span>
+                              <div style={{width:60,height:4,background:"#eee",borderRadius:2,overflow:"hidden"}}>
+                                <div style={{height:"100%",background:C.teal,width:`${Math.round(info.count/maxCount*100)}%`}}/>
+                              </div>
                               {info.audioUrl
                                 ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                                     style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
@@ -1763,14 +1637,66 @@ function SanshinApp() {
                 );
               }
 
-              // 番号帯・テキスト検索
+              // 番号順・テキスト検索
               const q = searchQuery.trim().toLowerCase();
+              if (searchMode === "range" && !q) {
+                const allSongs = Object.entries(songDB)
+                  .filter(([num]) => parseInt(num) < 900)
+                  .sort((a,b) => a[0].localeCompare(b[0]));
+                const selectedFrom = searchRange ? searchRange[0] : 1;
+                const visibleSongs = allSongs.filter(([num]) => {
+                  const n = parseInt(num);
+                  return n >= selectedFrom && n <= selectedFrom + 49;
+                });
+                const jumpBtns = (
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
+                    {(() => {
+                      const maxNum2 = Math.max(...allSongs.map(([num]) => parseInt(num)));
+                      const btns = [];
+                      for (let from = 1; from <= maxNum2; from += 50) {
+                        const f = from;
+                        const t = Math.min(from+49, maxNum2);
+                        btns.push(
+                          <button key={f} style={{...S.btn,fontSize:11,padding:"4px 8px",
+                            background:selectedFrom===f?C.teal:C.tealLight,
+                            color:selectedFrom===f?"#fff":C.teal,
+                            border:`1px solid ${C.teal}`}}
+                            onClick={()=>setSearchRange([f,t])}>
+                            {String(f).padStart(3,"0")}〜
+                          </button>
+                        );
+                      }
+                      return btns;
+                    })()}
+                  </div>
+                );
+                return (
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {jumpBtns}
+                    <div style={{fontSize:12,color:C.sub}}>{visibleSongs.length}曲（{String(selectedFrom).padStart(3,"0")}〜{String(selectedFrom+49).padStart(3,"0")}）</div>
+                    {visibleSongs.map(([num, info]) => {
+                      const stat = songStats[num];
+                      return (
+                        <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
+                          <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
+                            onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
+                          <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
+                          {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
+                          {info.audioUrl
+                            ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
+                            : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
+                          }
+                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                        </div>
+                      );
+                    })}
+                    <div style={{marginTop:8}}>{jumpBtns}</div>
+                  </div>
+                );
+              }
               const results = Object.entries(songDB)
                 .filter(([num, info]) => {
-                  if (searchRange) {
-                    const n = parseInt(num);
-                    return searchRange[0] === 999 ? n >= 900 : n >= searchRange[0] && n <= searchRange[1];
-                  }
                   if (!q) return false;
                   return num.includes(q) || info.title.toLowerCase().includes(q);
                 })
@@ -1788,7 +1714,6 @@ function SanshinApp() {
                               onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>{num}</span>
                             <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}</span>
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
-                            {stat && <span style={{fontSize:12,whiteSpace:"nowrap"}}>{"🌸".repeat(Math.min(5,Math.floor(stat.count/10)))}</span>}
                             {info.audioUrl
                               ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                                   style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
@@ -1808,7 +1733,19 @@ function SanshinApp() {
         {/* ── My（お気に入り） ── */}
         {tab==="my" && (
           <div style={S.section}>
-            <h2 style={S.sectionTitle}>⭐ My 曲リスト</h2>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <h2 style={S.sectionTitle}>⭐ My 曲リスト</h2>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:"bold",
+                  background:isAdmin?"#f0c040":canEdit?"rgba(26,107,90,0.15)":"rgba(0,0,0,0.06)",
+                  color:isAdmin?"#1a6b5a":canEdit?C.teal:C.sub}}>
+                  {userRole}
+                </div>
+                {lastLoginDate && (
+                  <div style={{fontSize:10,color:C.sub}}>LAST: {lastLoginDate}</div>
+                )}
+              </div>
+            </div>
             <p style={{...S.hint,textAlign:"right"}}>⭐をタップするとリストから解除されます。</p>
             {myMarks.size === 0
               ? <div style={S.empty}>まだマークした曲がありません。<br/>検索や曲情報から⭐をタップして追加してください。</div>
@@ -1844,6 +1781,29 @@ function SanshinApp() {
                 </div>
               )
             }
+          </div>
+        )}
+
+        {/* ── リンク ── */}
+        {tab==="links" && (
+          <div style={S.section}>
+            <h2 style={S.sectionTitle}>🔗 便利リンク</h2>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {links.length === 0
+                ? <div style={S.empty}>リンクが登録されていません</div>
+                : links.map((link, idx) => (
+                    <a key={idx} href={link.url} target="_blank" rel="noreferrer"
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",
+                        background:"#fff",borderRadius:10,textDecoration:"none",
+                        border:`1px solid ${C.border}`}}>
+                      <span style={{fontSize:14,fontWeight:"bold",color:C.teal,flex:1}}>{link.name}</span>
+                      {link.desc && <span style={{fontSize:11,color:C.sub}}>{link.desc}</span>}
+                      <span style={{color:C.sub,fontSize:12}}>→</span>
+                    </a>
+                  ))
+              }
+            </div>
+            <p style={{...S.hint,marginTop:12,textAlign:"right"}}>リンクはスプレッドシートの「リンク」シートで管理できます</p>
           </div>
         )}
 
@@ -1931,18 +1891,7 @@ function SanshinApp() {
                   style={{background:showChindami?C.gold:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,border:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>
                   🎼 ちんだみ
                 </button>
-                <a href="https://bit.ly/2026kk4" target="_blank" rel="noreferrer"
-                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
-                  📄 工工四
-                </a>
-                <a href="https://bit.ly/ongen11" target="_blank" rel="noreferrer"
-                  style={{background:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
-                  🎵 音源
-                </a>
-                <a href="https://zoom.us/j/2950376039" target="_blank" rel="noreferrer"
-                  style={{background:"#2D8CFF",color:"#fff",padding:"6px 10px",borderRadius:8,textDecoration:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>
-                  🎥 ZOOM
-                </a>
+
               </div>
             </div>
 
@@ -2057,47 +2006,7 @@ function SanshinApp() {
                   }
                 </div>
 
-                {/* 全曲練習回数 */}
-                <div style={S.adviceCard}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <div style={S.adviceHeader}>📊 全曲練習回数</div>
-                    <span style={{fontSize:11,color:C.sub}}>{diary.length}回記録</span>
-                    <span style={{fontSize:11,color:C.sub}}>／</span>
-                    <span style={{fontSize:11,color:C.sub}}>{Object.keys(songStats).length}曲</span>
-                    {diary.length > 0 && (
-                      <span style={{fontSize:11,color:C.sub}}>
-                        📅 {diary[diary.length-1].date.replace(/-/g,"/")}〜
-                      </span>
-                    )}
-                  </div>
-                  {Object.entries(songStats).sort((a,b)=>b[1].count-a[1].count).map(([num,info])=>{
-                    const m=getMastery(info.count);
-                    return (
-                      <div key={num} style={{...S.statRow,flexWrap:"wrap",gap:6}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
-                          <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                            onClick={()=>{const db=songDB[num];if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||""});}}}>
-                            {num}</span>
-                          <span style={S.songTitle}>{info.title} {chindamiIcon(songDB[num]?.chindami)}</span>
-                          <span style={S.statCount}>{info.count}回</span>
 
-                          {songDB[num]?.audioUrl
-                            ? <a href={songDB[num].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
-                            : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
-                          }
-                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",paddingLeft:4}}>
-                          <div style={S.barWrap}><div style={{...S.bar,width:`${Math.round(info.count / maxSongCount * 100)}%`}}/></div>
-                          <span style={{fontSize:14,whiteSpace:"nowrap",letterSpacing:1}}>
-                            {"🌸".repeat(Math.min(5, Math.floor(info.count / 10)))}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
 
 
 
