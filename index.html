@@ -767,6 +767,7 @@ function SanshinApp() {
   const [songInfoSaving, setSongInfoSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showChindami, setShowChindami] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [myMarks, setMyMarksState] = useState(new Set());
   const setMyMarks = (next) => {
     setMyMarksState(next);
@@ -1443,7 +1444,6 @@ function SanshinApp() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <h2 style={{...S.sectionTitle,border:"none",paddingBottom:0}}>お稽古履歴</h2>
             </div>
-            <div style={{borderBottom:`1px solid ${C.border}`,marginBottom:4}}/>
             {diary.length===0
               ? <div style={S.empty}>まだ記録がありません。</div>
               : diary.map(entry=>(
@@ -1891,7 +1891,10 @@ function SanshinApp() {
                   style={{background:showChindami?C.gold:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,border:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>
                   🎼 ちんだみ
                 </button>
-
+                <button onClick={()=>setShowStats(s=>!s)}
+                  style={{background:showStats?C.teal:"#7faa9c",color:"#fff",padding:"6px 10px",borderRadius:8,border:"none",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>
+                  📊 統計
+                </button>
               </div>
             </div>
 
@@ -1941,6 +1944,132 @@ function SanshinApp() {
                 </div>
               </div>
             </div>
+            )}
+
+            {showStats && (
+              <div style={{...S.adviceCard,marginTop:8}}>
+                <div style={S.adviceHeader}>📊 お稽古情報（直近1年）</div>
+                {(() => {
+                  const oneYearAgo = new Date();
+                  oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+                  const cutoff = oneYearAgo.toISOString().slice(0,10);
+                  const recent = diary.filter(d => d.date >= cutoff);
+                  const monthMap = {};
+                  recent.forEach(d => {
+                    const ym = d.date.slice(0,7);
+                    monthMap[ym] = (monthMap[ym]||0) + (d.songs ? d.songs.length : 0);
+                  });
+                  const months = Object.keys(monthMap).sort();
+                  const vals = months.map(m => monthMap[m]);
+                  const total = vals.reduce((a,b)=>a+b,0);
+                  const avg = months.length > 0 ? Math.round(total/months.length) : 0;
+                  const peakIdx = vals.indexOf(Math.max.apply(null, vals));
+                  const peakLabel = months[peakIdx] ? months[peakIdx].slice(5)+"月("+vals[peakIdx]+"回)" : "---";
+                  const maxVal = Math.max.apply(null, vals.concat([1]));
+                  return (
+                    <>
+                      <div style={{display:"flex",gap:8,marginTop:8,marginBottom:16}}>
+                        {[
+                          {label:"直近1年合計", value:total+"回"},
+                          {label:"月平均", value:avg+"回"},
+                          {label:"最多月", value:peakLabel},
+                        ].map(function(item){return (
+                          <div key={item.label} style={{flex:1,background:"rgba(26,107,90,0.06)",borderRadius:8,padding:"10px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:10,color:C.sub,marginBottom:4}}>{item.label}</div>
+                            <div style={{fontSize:15,fontWeight:"bold",color:C.teal}}>{item.value}</div>
+                          </div>
+                        );})}
+                      </div>
+                      {months.length > 0 && (
+                        <div>
+                          <div style={{fontSize:11,color:C.sub,marginBottom:8}}>月別練習曲数</div>
+                          <div style={{display:"flex",alignItems:"flex-end",gap:3,height:80}}>
+                            {months.map(function(ym, i){
+                              const barH = Math.round(vals[i]/maxVal*64);
+                              return (
+                                <div key={ym} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                  <div style={{fontSize:9,color:C.sub}}>{vals[i]}</div>
+                                  <div style={{width:"100%",height:barH+"px",minHeight:2,
+                                    background:i===peakIdx?C.teal:"#9fe1cb",
+                                    borderRadius:"3px 3px 0 0"}}/>
+                                  <div style={{fontSize:9,color:C.sub}}>{ym.slice(5)}月</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {months.length > 0 && (
+                        <div style={{marginTop:16}}>
+                          <div style={{fontSize:11,color:C.sub,marginBottom:8}}>曲別・月別練習（直近6ヶ月・上位8曲）</div>
+                          {(() => {
+                            const six = months.slice(-6);
+                            const songMap = {};
+                            recent.filter(function(d){ return six.indexOf(d.date.slice(0,7)) !== -1; }).forEach(function(d){
+                              const ym = d.date.slice(0,7);
+                              if (d.songs) d.songs.forEach(function(s){
+                                if (!songMap[s.number]) songMap[s.number] = {title:s.title, months:{}};
+                                songMap[s.number].months[ym] = (songMap[s.number].months[ym]||0)+1;
+                              });
+                            });
+                            const top = Object.entries(songMap)
+                              .map(function(e){ return {num:e[0], title:e[1].title, months:e[1].months, total:Object.values(e[1].months).reduce(function(a,b){return a+b;},0)}; })
+                              .sort(function(a,b){return b.total-a.total;}).slice(0,8);
+                            const hmax = Math.max.apply(null, top.map(function(s){return Math.max.apply(null,Object.values(s.months).concat([1]));}).concat([1]));
+                            function heatBg(v){
+                              if (!v) return "rgba(0,0,0,0.04)";
+                              const p = v/hmax;
+                              if (p < 0.25) return "#e1f5ee";
+                              if (p < 0.5)  return "#9fe1cb";
+                              if (p < 0.75) return "#5dcaa5";
+                              return "#0f6e56";
+                            }
+                            function heatFg(v){
+                              if (!v) return C.sub;
+                              return v/hmax >= 0.5 ? "#fff" : "#0f6e56";
+                            }
+                            if (top.length === 0) return null;
+                            return (
+                              <div style={{overflowX:"auto"}}>
+                                <table style={{borderCollapse:"separate",borderSpacing:2,fontSize:10,width:"100%"}}>
+                                  <thead>
+                                    <tr>
+                                      <th style={{textAlign:"left",padding:"2px 4px",color:C.sub,fontWeight:400,minWidth:70}}></th>
+                                      {six.map(function(ym){return <th key={ym} style={{textAlign:"center",padding:"2px",color:C.sub,fontWeight:400}}>{ym.slice(5)}月</th>;})}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {top.map(function(s){return (
+                                      <tr key={s.num}>
+                                        <td style={{padding:"2px 4px",color:C.text,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</td>
+                                        {six.map(function(ym){
+                                          const v = s.months[ym]||0;
+                                          return (
+                                            <td key={ym} style={{padding:"2px"}}>
+                                              <div style={{background:heatBg(v),color:heatFg(v),borderRadius:4,padding:"4px 0",textAlign:"center",minWidth:24,fontSize:10}}>
+                                                {v||""}
+                                              </div>
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    );})}
+                                  </tbody>
+                                </table>
+                                <div style={{display:"flex",alignItems:"center",gap:4,marginTop:6,fontSize:10,color:C.sub}}>
+                                  <span>少</span>
+                                  {["#e1f5ee","#9fe1cb","#5dcaa5","#0f6e56"].map(function(bg){return <span key={bg} style={{display:"inline-block",width:12,height:12,borderRadius:2,background:bg}}/> ;})}
+                                  <span>多</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             )}
 
             {diary.length===0
