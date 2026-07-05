@@ -2001,7 +2001,7 @@ function SanshinApp() {
                       )}
                       {months.length > 0 && (
                         <div style={{marginTop:16}}>
-                          <div style={{fontSize:11,color:C.sub,marginBottom:8}}>曲別・月別練習（直近6ヶ月・上位8曲）</div>
+                          <div style={{fontSize:11,color:C.sub,marginBottom:8}}>曲別・月別練習（直近6ヶ月・上位20曲）</div>
                           {(() => {
                             const six = months.slice(-6);
                             const songMap = {};
@@ -2014,7 +2014,7 @@ function SanshinApp() {
                             });
                             const top = Object.entries(songMap)
                               .map(function(e){ return {num:e[0], title:e[1].title, months:e[1].months, total:Object.values(e[1].months).reduce(function(a,b){return a+b;},0)}; })
-                              .sort(function(a,b){return b.total-a.total;}).slice(0,8);
+                              .sort(function(a,b){return b.total-a.total;}).slice(0,20);
                             const hmax = Math.max.apply(null, top.map(function(s){return Math.max.apply(null,Object.values(s.months).concat([1]));}).concat([1]));
                             function heatBg(v){
                               if (!v) return "rgba(0,0,0,0.04)";
