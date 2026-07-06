@@ -24,8 +24,8 @@
 // ── ユーティリティ ─────────────────────────────────────
 function levelIcon(level) {
   const lv = parseInt(level) || 0;
-  if (lv === 1) return "🐣";
-  if (lv === 2) return "🐓";
+  if (lv === 1) return "🐥";
+  if (lv === 2) return "🐔";
   if (lv === 3) return "👘";
   return null;
 }
@@ -1260,19 +1260,29 @@ function SanshinApp() {
   }, [songDB, recKimono, recHiyoko]);
 
   const comebackNums = useMemo(() => {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0,10);
-    const recentNums = new Set(
-      diary.filter(d => d.date >= sixMonthsAgoStr)
+    // 前回お稽古日を取得（diary[0]が最新）
+    const lastSessionDate = latestSession ? latestSession.date : null;
+    if (!lastSessionDate) return new Set();
+
+    // 前回お稽古日の6ヶ月前
+    const sixMonthsBefore = new Date(lastSessionDate);
+    sixMonthsBefore.setMonth(sixMonthsBefore.getMonth() - 6);
+    const sixMonthsBeforeStr = sixMonthsBefore.toISOString().slice(0,10);
+
+    // 前回お稽古日より前の日誌で、6ヶ月間に出現した曲番号を収集
+    const appearedNums = new Set(
+      diary
+        .filter(d => d.date >= sixMonthsBeforeStr && d.date < lastSessionDate)
         .flatMap(d => d.songs ? d.songs.map(s => s.number) : [])
     );
+
+    // 前回候補の中で、6ヶ月間出現していない曲（NEW除く）
     return new Set(
       [...recKimono,...recHiyoko]
         .map(s => s.number)
-        .filter(num => !newNums.has(num) && !recentNums.has(num))
+        .filter(num => !newNums.has(num) && !appearedNums.has(num))
     );
-  }, [diary, recKimono, recHiyoko, newNums]);
+  }, [diary, latestSession, recKimono, recHiyoko, newNums]);
 
   const today = new Date().toISOString().slice(0,10);
   const nextEvent = events.filter(e=>e.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -1458,7 +1468,7 @@ function SanshinApp() {
                       if(!gs.length) return null;
                       return (
                         <div key={grp} style={S.groupSection}>
-                          <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
+                          <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組（第一部）":"🐥 ひよこ組（第二部）"}</div>
                           {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} onSearch={(title)=>setTaruModal({title})}/>)}
                         </div>
                       );
@@ -1518,7 +1528,7 @@ function SanshinApp() {
                         if(!gs.length) return null;
                         return (
                           <div key={grp} style={S.groupSection}>
-                            <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐣 ひよこ組"}</div>
+                            <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐥 ひよこ組"}</div>
                             {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}/>)}
                           </div>
                         );
@@ -2154,7 +2164,7 @@ function SanshinApp() {
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
-                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
+                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}{parseInt(songDB[s.number]?.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(songDB[s.number].level)}</span> : null}</span>
                         {newNums.has(s.number)
                           ? <span style={S.newBadge}>NEW</span>
                           : comebackNums.has(s.number)
@@ -2169,7 +2179,7 @@ function SanshinApp() {
                       </div>
                     ))
                   }
-                  <div style={{...S.groupLabel,marginTop:8}}>🐣 ひよこ組</div>
+                  <div style={{...S.groupLabel,marginTop:8}}>🐥 ひよこ組</div>
                   {recHiyoko.length===0
                     ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
                     : recHiyoko.map(s=>(
@@ -2178,7 +2188,7 @@ function SanshinApp() {
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
-                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
+                        <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}{parseInt(songDB[s.number]?.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(songDB[s.number].level)}</span> : null}</span>
                         {newNums.has(s.number)
                           ? <span style={S.newBadge}>NEW</span>
                           : comebackNums.has(s.number)
@@ -2333,10 +2343,10 @@ function SanshinApp() {
             </div>
 
             {/* 難易度 */}
-            <div style={{marginBottom:12}}>              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>⭐ 難易度</div>
+            <div style={{marginBottom:12}}>              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>🐥🐔👘 難易度</div>
               {canEdit ? (
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {[{v:0,label:"未設定"},{v:1,label:"🐣 初級"},{v:2,label:"🐓 中級"},{v:3,label:"👘 上級"}].map(item=>(
+                  {[{v:0,label:"未設定"},{v:1,label:"🐥 初級"},{v:2,label:"🐔 中級"},{v:3,label:"👘 上級"}].map(item=>(
                     <button key={item.v} style={{...S.btn,fontSize:12,padding:"6px 10px",
                       background:songInfoEdit.level===item.v?C.teal:"transparent",
                       color:songInfoEdit.level===item.v?"#fff":C.sub,
@@ -2348,7 +2358,7 @@ function SanshinApp() {
                 </div>
               ) : (
                 <div style={{fontSize:13,color:C.text,padding:"6px 0"}}>
-                  {songInfoEdit.level===1?"🐣 初級":songInfoEdit.level===2?"🐓 中級":songInfoEdit.level===3?"👘 上級":"未設定"}
+                  {songInfoEdit.level===1?"🐥 初級":songInfoEdit.level===2?"🐔 中級":songInfoEdit.level===3?"👘 上級":"未設定"}
                 </div>
               )}
             </div>
@@ -2467,7 +2477,7 @@ function SanshinApp() {
               onChange={e=>setEditingDiary({...editingDiary, date:e.target.value})}/>
             {["着物組","ひよこ組"].map(grp=>(
               <div key={grp} style={{marginTop:12}}>
-                <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐣 ひよこ組"}</div>
+                <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐥 ひよこ組"}</div>
                 {editingDiary.songs.filter(s=>s.group===grp).map(s=>{
                   const gi=editingDiary.songs.indexOf(s);
                   return (
@@ -2586,7 +2596,7 @@ function AdviceBlock({data}) {
             )}
             {data[yr] && data[yr]["ひよこ組"] && (
               <div>
-                <div style={S.groupLabel}>🐣 ひよこ組</div>
+                <div style={S.groupLabel}>🐥 ひよこ組</div>
                 <div style={{...S.importText,marginTop:4}}>{data[yr]["ひよこ組"]}</div>
               </div>
             )}
@@ -2605,7 +2615,7 @@ function AdviceBlock({data}) {
       )}
       {data["ひよこ組"] && (
         <div>
-          <div style={S.groupLabel}>🐣 ひよこ組</div>
+          <div style={S.groupLabel}>🐥 ひよこ組</div>
           <div style={{...S.importText,marginTop:6}}>{data["ひよこ組"]}</div>
         </div>
       )}
