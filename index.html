@@ -395,7 +395,10 @@ const SONG_DB_DEFAULT = {
   "221-1":{"title":"真謝節"},
   "221-2":{"title":"ぼすぽう"}
 };
-let SONG_DB = {...SONG_DB_DEFAULT};
+// 本番はキャッシュ優先・なければ空。Artifactはテストデータ
+let SONG_DB = (typeof location !== "undefined" && location.hostname === "zephra0911.github.io")
+  ? {}
+  : {...SONG_DB_DEFAULT};
 // キャッシュがあれば即座に反映（ページ読み込み時、コンポーネント初期化前）
 if (typeof location !== "undefined" && location.hostname === "zephra0911.github.io") {
   try {
@@ -726,7 +729,7 @@ function SanshinApp() {
   const [isNewUser, setIsNewUser] = useState(false);
 
   const [tab, setTab] = useState("advice");
-  const [songDB, setSongDB] = useState(SONG_DB); // SONG_DBはキャッシュ済みの可能性あり
+  const [songDB, setSongDB] = useState(SONG_DB); // 本番=キャッシュ or 空、Artifact=テストデータ
   const [links, setLinks] = useState([
     { name: "📄 工工四", url: "https://bit.ly/2026kk4", desc: "工工四PDF" },
     { name: "🎵 音源", url: "https://bit.ly/ongen11", desc: "音源フォルダ" },
@@ -918,6 +921,7 @@ function SanshinApp() {
 
   // ── 起動時自動読み込み ───────────────────────────────
   const [gasLoading, setGasLoading] = useState(true);
+  const [gasLoadError, setGasLoadError] = useState(false);
   const gasLoadingRef = useRef(true);
   useEffect(() => { gasLoadingRef.current = gasLoading; }, [gasLoading]);
 
@@ -946,7 +950,7 @@ function SanshinApp() {
           if (importData) setImportResult(importData);
         } catch(e) {
           console.error("GAS読み込みエラー:", e);
-          setDiary(INITIAL_DIARY);
+          setGasLoadError(true);
         }
       } else {
         // Artifact: ハードコードデータを使用
@@ -1230,10 +1234,16 @@ function SanshinApp() {
   const latestSession = diary[0];
   const recKimono = latestSession ? latestSession.songs.filter(s => s.group==="着物組") : [];
   const recHiyoko = latestSession ? latestSession.songs.filter(s => s.group==="ひよこ組") : [];
-  // 練習回数3回以下をNEW扱い
+  // 日誌に出現した最大曲番号より大きく、かつ未出現の曲をNEW扱い
+  const allDiaryNums = new Set(
+    diary.flatMap(d => d.songs ? d.songs.map(s => s.number) : [])
+  );
+  const maxDiaryNum = allDiaryNums.size > 0
+    ? Math.max.apply(null, Array.from(allDiaryNums).map(n => parseInt(n)||0))
+    : 0;
   const newNums = new Set(
     [...recKimono,...recHiyoko]
-      .filter(s => (songStats[s.number]?.count || 0) <= 3)
+      .filter(s => parseInt(s.number) > maxDiaryNum && !allDiaryNums.has(s.number))
       .map(s => s.number)
   );
   // 直近6ヶ月以上出現していない曲を💫扱い
@@ -1259,8 +1269,23 @@ function SanshinApp() {
       {loginStep === "done" && gasLoading && (
         <div style={{position:"fixed",inset:0,background:"rgba(255,255,255,0.95)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:999}}>
           <div style={{fontSize:32,marginBottom:12}}>結</div>
-          <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>データを読み込んでいます...</div>
-          <div style={{color:C.sub,fontSize:12,marginTop:6}}>通信状況によって少し時間がかかります</div>
+          {gasLoadError ? (
+            <>
+              <div style={{color:C.accent,fontWeight:"bold",fontSize:15}}>⚠️ データの読み込みに失敗しました</div>
+              <div style={{color:C.sub,fontSize:12,marginTop:8,textAlign:"center",lineHeight:1.6}}>
+                通信状況を確認して、画面を再読み込みしてください
+              </div>
+              <button style={{...S.btn,...S.btnPrimary,marginTop:16}}
+                onClick={()=>window.location.reload()}>
+                🔄 再読み込み
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{color:C.teal,fontWeight:"bold",fontSize:15}}>データを読み込んでいます...</div>
+              <div style={{color:C.sub,fontSize:12,marginTop:6}}>通信状況によって少し時間がかかります</div>
+            </>
+          )}
         </div>
       )}
 
