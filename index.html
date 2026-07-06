@@ -19,14 +19,15 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useRef, useEffect } = React;
+    const { useState, useRef, useEffect, useMemo } = React;
 
 // ── ユーティリティ ─────────────────────────────────────
 function levelIcon(level) {
-  if (!level || level === 0) return null;
-  if (level === 1) return "⭐";
-  if (level === 2) return "⭐⭐";
-  return "⭐⭐⭐";
+  const lv = parseInt(level) || 0;
+  if (lv === 1) return "🐣";
+  if (lv === 2) return "🐓";
+  if (lv === 3) return "👘";
+  return null;
 }
 
 function chindamiIcon(chindami) {
@@ -1243,30 +1244,35 @@ function SanshinApp() {
   const recKimono = latestSession ? latestSession.songs.filter(s => s.group==="着物組") : [];
   const recHiyoko = latestSession ? latestSession.songs.filter(s => s.group==="ひよこ組") : [];
   // 登録日から1ヶ月以内の曲をNEW扱い
-  const oneMonthAgo = new Date();
-  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-  const oneMonthAgoStr = oneMonthAgo.toISOString().slice(0,10);
-  const newNums = new Set(
-    [...recKimono,...recHiyoko]
-      .filter(s => {
-        const reg = songDB[s.number]?.registeredAt;
-        return reg && reg >= oneMonthAgoStr;
-      })
-      .map(s => s.number)
-  );
-  // 直近6ヶ月以上出現していない曲を💫扱い
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0,10);
-  const recentNums = new Set(
-    diary.filter(d => d.date >= sixMonthsAgoStr)
-      .flatMap(d => d.songs ? d.songs.map(s => s.number) : [])
-  );
-  const comebackNums = new Set(
-    [...recKimono,...recHiyoko]
-      .map(s => s.number)
-      .filter(num => !newNums.has(num) && !recentNums.has(num))
-  );
+  // NEWと💫を両方useMemoで計算（songDB・diary読み込み後に正しく再計算）
+  const newNums = useMemo(() => {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoStr = oneMonthAgo.toISOString().slice(0,10);
+    return new Set(
+      [...recKimono,...recHiyoko]
+        .filter(s => {
+          const reg = songDB[s.number]?.registeredAt;
+          return reg && reg >= oneMonthAgoStr;
+        })
+        .map(s => s.number)
+    );
+  }, [songDB, recKimono, recHiyoko]);
+
+  const comebackNums = useMemo(() => {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0,10);
+    const recentNums = new Set(
+      diary.filter(d => d.date >= sixMonthsAgoStr)
+        .flatMap(d => d.songs ? d.songs.map(s => s.number) : [])
+    );
+    return new Set(
+      [...recKimono,...recHiyoko]
+        .map(s => s.number)
+        .filter(num => !newNums.has(num) && !recentNums.has(num))
+    );
+  }, [diary, recKimono, recHiyoko, newNums]);
 
   const today = new Date().toISOString().slice(0,10);
   const nextEvent = events.filter(e=>e.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -1452,7 +1458,7 @@ function SanshinApp() {
                       if(!gs.length) return null;
                       return (
                         <div key={grp} style={S.groupSection}>
-                          <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
+                          <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組（第一部）":"🐣 ひよこ組（第二部）"}</div>
                           {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} onSearch={(title)=>setTaruModal({title})}/>)}
                         </div>
                       );
@@ -1512,7 +1518,7 @@ function SanshinApp() {
                         if(!gs.length) return null;
                         return (
                           <div key={grp} style={S.groupSection}>
-                            <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
+                            <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐣 ひよこ組"}</div>
                             {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}/>)}
                           </div>
                         );
@@ -1616,7 +1622,7 @@ function SanshinApp() {
                             <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                               <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                                 onClick={()=>{if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||"",level:db.level||0});}}}>{num}</span>
-                              <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(db?.chindami)}{db?.level ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(db.level)}</span> : null}</span>
+                              <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(db?.chindami)}{parseInt(db?.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(db.level)}</span> : null}</span>
                               <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{info.count}回</span>
                               <div style={{width:60,height:4,background:"#eee",borderRadius:2,overflow:"hidden"}}>
                                 <div style={{height:"100%",background:C.teal,width:`${Math.round(info.count/maxCount*100)}%`}}/>
@@ -1664,7 +1670,7 @@ function SanshinApp() {
                                   onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>
                                   {num}
                                 </span>
-                                <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{info.level ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
+                                <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                                 <span style={{fontSize:11,color:C.accent,whiteSpace:"nowrap",fontWeight:"bold"}}>
                                   🏆{awardHistory[num][award].length}
                                 </span>
@@ -1726,7 +1732,7 @@ function SanshinApp() {
                         <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                           <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                             onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>{num}</span>
-                          <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{info.level ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
+                          <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                           {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                           {info.audioUrl
                             ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1758,7 +1764,7 @@ function SanshinApp() {
                           <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                             <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
                               onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>{num}</span>
-                            <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{info.level ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
+                            <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {info.audioUrl
                               ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
@@ -1808,7 +1814,7 @@ function SanshinApp() {
                           onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}>
                           {num}
                         </span>
-                        <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{info.level ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
+                        <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                         {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                         <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         {info.audioUrl
@@ -2139,7 +2145,7 @@ function SanshinApp() {
                       {textCopied?"✅ コピー済":"📋 日誌に使う"}
                     </button>
                   </div>
-                  <div style={S.groupLabel}>🪸 着物組</div>
+                  <div style={S.groupLabel}>👘 着物組</div>
                   {recKimono.length===0
                     ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
                     : recKimono.map(s=>(
@@ -2330,7 +2336,7 @@ function SanshinApp() {
             <div style={{marginBottom:12}}>              <div style={{fontSize:12,color:C.sub,marginBottom:4}}>⭐ 難易度</div>
               {canEdit ? (
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {[{v:0,label:"🤔 未設定"},{v:1,label:"⭐ 初級"},{v:2,label:"⭐⭐ 中級"},{v:3,label:"⭐⭐⭐ 上級"}].map(item=>(
+                  {[{v:0,label:"未設定"},{v:1,label:"🐣 初級"},{v:2,label:"🐓 中級"},{v:3,label:"👘 上級"}].map(item=>(
                     <button key={item.v} style={{...S.btn,fontSize:12,padding:"6px 10px",
                       background:songInfoEdit.level===item.v?C.teal:"transparent",
                       color:songInfoEdit.level===item.v?"#fff":C.sub,
@@ -2342,7 +2348,7 @@ function SanshinApp() {
                 </div>
               ) : (
                 <div style={{fontSize:13,color:C.text,padding:"6px 0"}}>
-                  {songInfoEdit.level===1?"⭐ 初級":songInfoEdit.level===2?"⭐⭐ 中級":songInfoEdit.level===3?"⭐⭐⭐ 上級":"🤔 未設定"}
+                  {songInfoEdit.level===1?"🐣 初級":songInfoEdit.level===2?"🐓 中級":songInfoEdit.level===3?"👘 上級":"未設定"}
                 </div>
               )}
             </div>
@@ -2461,7 +2467,7 @@ function SanshinApp() {
               onChange={e=>setEditingDiary({...editingDiary, date:e.target.value})}/>
             {["着物組","ひよこ組"].map(grp=>(
               <div key={grp} style={{marginTop:12}}>
-                <div style={S.groupLabel}>{grp==="着物組"?"🪸 着物組":"🐣 ひよこ組"}</div>
+                <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐣 ひよこ組"}</div>
                 {editingDiary.songs.filter(s=>s.group===grp).map(s=>{
                   const gi=editingDiary.songs.indexOf(s);
                   return (
@@ -2574,7 +2580,7 @@ function AdviceBlock({data}) {
             <div style={{fontWeight:"bold",color:C.gold,fontSize:13,marginBottom:4}}>📅 {yr}年</div>
             {data[yr] && data[yr]["着物組"] && (
               <div style={{marginBottom:6}}>
-                <div style={S.groupLabel}>🪸 着物組</div>
+                <div style={S.groupLabel}>👘 着物組</div>
                 <div style={{...S.importText,marginTop:4}}>{data[yr]["着物組"]}</div>
               </div>
             )}
@@ -2593,7 +2599,7 @@ function AdviceBlock({data}) {
     <div>
       {data["着物組"] && (
         <div style={{marginBottom:8}}>
-          <div style={S.groupLabel}>🪸 着物組</div>
+          <div style={S.groupLabel}>👘 着物組</div>
           <div style={{...S.importText,marginTop:6}}>{data["着物組"]}</div>
         </div>
       )}
