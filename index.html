@@ -1236,6 +1236,19 @@ function SanshinApp() {
       .filter(s => (songStats[s.number]?.count || 0) <= 3)
       .map(s => s.number)
   );
+  // 直近6ヶ月以上出現していない曲を💫扱い
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0,10);
+  const recentNums = new Set(
+    diary.filter(d => d.date >= sixMonthsAgoStr)
+      .flatMap(d => d.songs ? d.songs.map(s => s.number) : [])
+  );
+  const comebackNums = new Set(
+    [...recKimono,...recHiyoko]
+      .map(s => s.number)
+      .filter(num => !newNums.has(num) && !recentNums.has(num))
+  );
 
   const today = new Date().toISOString().slice(0,10);
   const nextEvent = events.filter(e=>e.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -2097,13 +2110,17 @@ function SanshinApp() {
                   {recKimono.length===0
                     ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
                     : recKimono.map(s=>(
-                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
+                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:comebackNums.has(s.number)?`3px solid #9b59b6`:`3px solid ${C.gold}`}}>
                         <span style={S.songOrder}>#{s.order}</span>
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
                         <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
-                        {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                        {newNums.has(s.number)
+                          ? <span style={S.newBadge}>NEW</span>
+                          : comebackNums.has(s.number)
+                          ? <span style={{...S.newBadge,background:"transparent",fontSize:14}}>💫</span>
+                          : null}
                         {songDB[s.number]?.audioUrl
                           ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
@@ -2117,13 +2134,17 @@ function SanshinApp() {
                   {recHiyoko.length===0
                     ? <div style={{fontSize:12,color:C.sub}}>データなし</div>
                     : recHiyoko.map(s=>(
-                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:`3px solid ${C.gold}`}}>
+                      <div key={s.number} style={{...S.songRow,borderLeft:newNums.has(s.number)?`3px solid ${C.accent}`:comebackNums.has(s.number)?`3px solid #9b59b6`:`3px solid ${C.gold}`}}>
                         <span style={S.songOrder}>#{s.order}</span>
                         <span style={{...S.songNum,cursor:songDB[s.number]?"pointer":"default",textDecoration:songDB[s.number]?"underline":"none"}}
                           onClick={()=>{const info=songDB[s.number];if(info){const st=songStats[s.number];setSongInfoModal({number:s.number,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:s.number,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||""});}}}>
                           {s.number}</span>
                         <span style={S.songTitle}>{s.title} {chindamiIcon(songDB[s.number]?.chindami)}</span>
-                        {newNums.has(s.number)&&<span style={S.newBadge}>NEW</span>}
+                        {newNums.has(s.number)
+                          ? <span style={S.newBadge}>NEW</span>
+                          : comebackNums.has(s.number)
+                          ? <span style={{...S.newBadge,background:"transparent",fontSize:14}}>💫</span>
+                          : null}
                         {songDB[s.number]?.audioUrl
                           ? <a href={songDB[s.number].audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
