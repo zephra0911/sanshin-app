@@ -1470,7 +1470,7 @@ function SanshinApp() {
                       return (
                         <div key={grp} style={S.groupSection}>
                           <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組（第一部）":"🐥 ひよこ組（第二部）"}</div>
-                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} onSearch={(title)=>setTaruModal({title})}/>)}
+                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} onSearch={(title)=>setTaruModal({title})} isAdmin={isAdmin}/>)}
                         </div>
                       );
                     })}
@@ -1530,7 +1530,7 @@ function SanshinApp() {
                         return (
                           <div key={grp} style={S.groupSection}>
                             <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐥 ひよこ組"}</div>
-                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}/>)}
+                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} isAdmin={isAdmin}/>)}
                           </div>
                         );
                       })}
@@ -1691,6 +1691,7 @@ function SanshinApp() {
                                       style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
                                   : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                                 }
+                                {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎼</a>}
                               </div>
                             );
                           })}
@@ -1836,6 +1837,7 @@ function SanshinApp() {
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
                           : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                         }
+                        {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
                         <button
                           onClick={()=>{const next=new Set(myMarks);next.delete(num);setMyMarks(next);}}
                           style={{background:"none",border:"none",fontSize:18,cursor:"pointer",padding:"0 4px"}}>
@@ -2639,7 +2641,7 @@ function AdviceBlock({data}) {
   );
 }
 
-function SongRow({song, highlight, songDB=SONG_DB, onSongInfo=null, onSearch=null}) {
+function SongRow({song, highlight, songDB=SONG_DB, onSongInfo=null, onSearch=null, isAdmin=false}) {
   const isUnknown = !songDB[song.number] || highlight;
   const audioUrl = songDB[song.number]?.audioUrl;
   const info = songDB[song.number];
@@ -2657,6 +2659,7 @@ function SongRow({song, highlight, songDB=SONG_DB, onSongInfo=null, onSearch=nul
             style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
         : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
       }
+      {isAdmin && info?.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎼</a>}
       {onSearch && <button style={S.taruBtn} onClick={()=>onSearch(song.title)}>🔍</button>}
     </div>
   );
