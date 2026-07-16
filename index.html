@@ -1638,12 +1638,12 @@ function SanshinApp() {
                               <div style={{width:60,height:4,background:"#eee",borderRadius:2,overflow:"hidden"}}>
                                 <div style={{height:"100%",background:C.teal,width:`${Math.round(info.count/maxCount*100)}%`}}/>
                               </div>
-                              {info.audioUrl
-                                ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
+                              {db?.audioUrl
+                                ? <a href={db.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                                     style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
                                 : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                               }
-                              {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                              {isAdmin && db?.pdfUrl && <a href={db.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎼</a>}
                               <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                             </div>
                           );
