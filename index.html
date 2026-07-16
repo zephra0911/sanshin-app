@@ -1470,7 +1470,7 @@ function SanshinApp() {
                       return (
                         <div key={grp} style={S.groupSection}>
                           <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組（第一部）":"🐥 ひよこ組（第二部）"}</div>
-                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0,pdfUrl:info.pdfUrl||""});}} onSearch={(title)=>setTaruModal({title})}/>)}
+                          {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}} onSearch={(title)=>setTaruModal({title})}/>)}
                         </div>
                       );
                     })}
@@ -1530,7 +1530,7 @@ function SanshinApp() {
                         return (
                           <div key={grp} style={S.groupSection}>
                             <div style={S.groupLabel}>{grp==="着物組"?"👘 着物組":"🐥 ひよこ組"}</div>
-                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0,pdfUrl:info.pdfUrl||""});}}/>)}
+                            {gs.map(s=><SongRow key={s.order} song={s} songDB={songDB} onSongInfo={(num,info)=>{setSongInfoModal({number:num,...info});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}/>)}
                           </div>
                         );
                       })}
@@ -1632,7 +1632,7 @@ function SanshinApp() {
                           return (
                             <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                               <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                                onClick={()=>{if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||"",level:db.level||0,pdfUrl:db.pdfUrl||""});}}}>{num}</span>
+                                onClick={()=>{if(db){const st=songStats[num];setSongInfoModal({number:num,...db,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:db.award||"",awardee:db.awardee||"",chindami:db.chindami||"",note:db.note||"",lyricist:db.lyricist||"",composer:db.composer||"",genre:db.genre||"",level:db.level||0});}}}>{num}</span>
                               <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(db?.chindami)}{parseInt(db?.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(db.level)}</span> : null}</span>
                               <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{info.count}回</span>
                               <div style={{width:60,height:4,background:"#eee",borderRadius:2,overflow:"hidden"}}>
@@ -1643,11 +1643,8 @@ function SanshinApp() {
                                     style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
                                 : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                               }
-                              <button style={S.taruBtn} {isAdmin && info.pdfUrl && (
-                              <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                              {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                              <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                             </div>
                           );
                         })
@@ -1682,7 +1679,7 @@ function SanshinApp() {
                             return (
                               <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.gold}`,padding:"10px 12px",marginBottom:4}}>
                                 <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                                  onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0,pdfUrl:info.pdfUrl||""});}}>
+                                  onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>
                                   {num}
                                 </span>
                                 <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
@@ -1746,7 +1743,7 @@ function SanshinApp() {
                       return (
                         <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                           <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                            onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0,pdfUrl:info.pdfUrl||""});}}>{num}</span>
+                            onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>{num}</span>
                           <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                           {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                           {info.audioUrl
@@ -1754,15 +1751,8 @@ function SanshinApp() {
                                 style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
                             : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                           }
-                          {isAdmin && info.pdfUrl && (
-                            <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                              style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                          )}
-                          <button style={S.taruBtn} {isAdmin && info.pdfUrl && (
-                              <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                          {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                          <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         </div>
                       );
                     })}
@@ -1786,7 +1776,7 @@ function SanshinApp() {
                         return (
                           <div key={num} style={{...S.songRow,borderLeft:`3px solid ${C.teal}`,padding:"10px 12px"}}>
                             <span style={{...S.songNum,cursor:"pointer",textDecoration:"underline"}}
-                              onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0,pdfUrl:info.pdfUrl||""});}}>{num}</span>
+                              onClick={()=>{const st=songStats[num];setSongInfoModal({number:num,...info,firstDate:st?.firstDate||"",lastDate:st?.lastDate||""});setSongInfoEdit({number:num,award:info.award||"",awardee:info.awardee||"",chindami:info.chindami||"",note:info.note||"",lyricist:info.lyricist||"",composer:info.composer||"",genre:info.genre||"",level:info.level||0});}}>{num}</span>
                             <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                             {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
                             {info.audioUrl
@@ -1794,15 +1784,8 @@ function SanshinApp() {
                                   style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
                               : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                             }
-                            {isAdmin && info.pdfUrl && (
-                              <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            <button style={S.taruBtn} {isAdmin && info.pdfUrl && (
-                              <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                            {isAdmin && info.pdfUrl && <a href={info.pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                            <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                           </div>
                         );
                       })
@@ -1847,11 +1830,7 @@ function SanshinApp() {
                         </span>
                         <span style={{...S.songTitle,flex:1}}>{info.title} {chindamiIcon(info.chindami)}{parseInt(info.level) > 0 ? <span style={{fontSize:10,color:C.gold}}>{levelIcon(info.level)}</span> : null}</span>
                         {stat && <span style={{fontSize:11,color:C.sub,whiteSpace:"nowrap"}}>{stat.count}回</span>}
-                        <button style={S.taruBtn} {isAdmin && info.pdfUrl && (
-                              <a href={info.pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:info.title})}>🔍</button>
+                        <button style={S.taruBtn} onClick={()=>setTaruModal({title:info.title})}>🔍</button>
                         {info.audioUrl
                           ? <a href={info.audioUrl.replace("/view","/preview")} target="_blank" rel="noreferrer"
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎵</a>
@@ -2200,11 +2179,8 @@ function SanshinApp() {
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
                           : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                         }
-                        <button style={S.taruBtn} {isAdmin && songDB[s.number]?.pdfUrl && (
-                              <a href={songDB[s.number].pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:s.title})}>🔍</button>
+                        {isAdmin && songDB[s.number]?.pdfUrl && <a href={songDB[s.number].pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                        <button style={S.taruBtn} onClick={()=>setTaruModal({title:s.title})}>🔍</button>
                       </div>
                     ))
                   }
@@ -2228,11 +2204,8 @@ function SanshinApp() {
                               style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal,padding:"4px 6px",fontSize:12}}>🎵</a>
                           : <span style={{...S.taruBtn,color:"#ccc",border:"1px solid #eee",padding:"4px 6px",fontSize:12}}>➖</span>
                         }
-                        <button style={S.taruBtn} {isAdmin && songDB[s.number]?.pdfUrl && (
-                              <a href={songDB[s.number].pdfUrl} target="_blank" rel="noreferrer"
-                                style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>
-                            )}
-                            onClick={()=>setTaruModal({title:s.title})}>🔍</button>
+                        {isAdmin && songDB[s.number]?.pdfUrl && <a href={songDB[s.number].pdfUrl} target="_blank" rel="noreferrer" style={{...S.taruBtn,textDecoration:"none",border:`1px solid ${C.teal}`,color:C.teal}}>🎼</a>}
+                        <button style={S.taruBtn} onClick={()=>setTaruModal({title:s.title})}>🔍</button>
                       </div>
                     ))
                   }
