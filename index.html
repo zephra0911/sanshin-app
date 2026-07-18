@@ -896,6 +896,8 @@ function SanshinApp() {
         if (result.myMarks) {
           setMyMarksState(new Set(result.myMarks.split(",").filter(Boolean)));
         }
+        // 前回ログイン日を表示にセット（GASが返す値＝前回の日付）
+        if (result.lastLogin) setLastLoginDate(result.lastLogin);
         // 既存ユーザー：ログイン完了
         gasLoginCountUp(trimmedName).catch(e => console.error("カウントエラー:", e));
         setLoginStep("done");
